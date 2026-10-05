@@ -1,0 +1,1840 @@
+<title>Ereignishorizont</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Unbounded:wght@400;600;800&display=swap">
+<style>
+/* Layout: links die Bühne mit dem Loch (Klickfläche, Messwerte, Eddington-Anzeige), rechts das Kontrollpult mit Reitern; schmal: untereinander.
+   Bewusst ein einziger Look (tiefer Raum, Akkretions-Glut), deshalb kein Hell/Dunkel-Wechsel. Jede Währung hat ihre eigene Farbe. */
+:root {
+  --void: #07060e;
+  --void-2: #120e24;
+  --panel: #0d0b19;
+  --panel-2: #161229;
+  --panel-3: #1e1937;
+  --line: #2a2344;
+  --text: #efe9f6;
+  --muted: #9b91b6;
+  --mass: #fff1d8;      /* Masse */
+  --disk: #ffad5a;      /* Energie / Akkretion */
+  --plasma: #79d0ff;    /* Jet-Plasma */
+  --quant: #c4a0ff;     /* Hawking-Quanten */
+  --dark: #ff6aa8;      /* Dunkle Energie */
+  --danger: #ff6b57;
+  --good: #8fe3a8;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--void); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+button { font: inherit; color: inherit; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--plasma); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+
+/* Kopfzeile */
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px;
+  padding-inline: 16px; padding-block: 10px; border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--void-2), var(--void));
+}
+.brand h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(17px, 2.2vw, 22px); letter-spacing: .02em; line-height: 1.1; text-wrap: balance; }
+.brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.wallet { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.coin { display: grid; gap: 1px; padding: 5px 11px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 112px; }
+.coin small { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.coin b { font-family: var(--mono); font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.coin i { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.coin.c-energy b { color: var(--disk); }
+.coin.c-plasma b { color: var(--plasma); }
+.coin.c-quant b { color: var(--quant); }
+.coin.c-dark b { color: var(--dark); }
+.urknall {
+  border: 1px solid var(--dark); background: color-mix(in srgb, var(--dark) 16%, transparent); color: var(--text);
+  border-radius: 999px; padding: 8px 16px; cursor: pointer; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .02em;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--dark) 35%, transparent);
+}
+.urknall b { color: var(--dark); font-weight: 800; }
+.urknall:hover { background: color-mix(in srgb, var(--dark) 28%, transparent); }
+
+/* Hauptbereich */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 470px); min-height: 0; }
+.stage { position: relative; min-height: 0; overflow: hidden; background: var(--void); }
+#space { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hit { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; border: 0; cursor: crosshair; -webkit-tap-highlight-color: transparent; }
+.hit:focus-visible { outline-offset: -4px; }
+.hud { position: absolute; pointer-events: none; }
+.hud-tl { top: 14px; left: 16px; right: 16px; display: grid; gap: 4px; max-width: 60%; }
+.eyebrow { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.mass { font-family: var(--display); font-weight: 800; font-size: clamp(26px, 4.2vw, 46px); line-height: 1.02; color: var(--mass); font-variant-numeric: tabular-nums; text-shadow: 0 0 30px rgba(255, 173, 90, .25); white-space: nowrap; }
+.mass-sub { font-size: 13px; color: var(--muted); }
+.mass-sub b { color: var(--text); font-weight: 600; }
+.facts { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.facts div { display: grid; }
+.facts dt { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.hud-tr { top: 14px; right: 16px; display: grid; gap: 6px; justify-items: end; text-align: right; }
+.flow small { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.flow b { font-family: var(--mono); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums; }
+.flow.evap b { color: var(--quant); }
+.flow.warn b { color: var(--danger); }
+.hud-bottom { left: 16px; right: 16px; bottom: 12px; display: grid; gap: 8px; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.meter-top { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.meter-top b { font-family: var(--mono); font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text); font-variant-numeric: tabular-nums; }
+.bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; margin-top: 4px; }
+.bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--disk); border-radius: 3px; transition: width .25s linear; }
+.bar em { position: absolute; top: 0; bottom: 0; left: 33.333%; width: 2px; background: var(--text); opacity: .55; }
+.meter.over .bar i { background: linear-gradient(90deg, var(--disk) 0 33.333%, var(--plasma) 33.333%); }
+.meter.over .meter-top b { color: var(--plasma); }
+.bar.prog i { background: linear-gradient(90deg, var(--quant), var(--disk) 55%, var(--mass)); }
+.ticker { margin: 0; font-size: 12.5px; color: var(--muted); min-height: 1.45em; transition: opacity .4s; }
+.buffs { display: flex; flex-wrap: wrap; gap: 6px; }
+.buff { font-size: 11.5px; font-family: var(--mono); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: rgba(13, 11, 25, .8); }
+.buff.good { border-color: var(--plasma); color: var(--plasma); }
+.buff.bad { border-color: var(--danger); color: var(--danger); }
+.hint-start {
+  position: absolute; left: 50%; top: 72%; transform: translateX(-50%); pointer-events: none;
+  font-family: var(--display); font-size: 13px; letter-spacing: .04em; color: var(--mass); text-align: center;
+  animation: breathe 2.2s ease-in-out infinite;
+}
+@keyframes breathe { 50% { opacity: .35; } }
+
+/* Ereignisse auf der Bühne */
+#events { position: absolute; inset: 0; pointer-events: none; }
+.ev {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; background: none; border: 0; padding: 4px;
+  display: grid; justify-items: center; gap: 4px; will-change: transform;
+}
+.ev .orb { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle, #fff 0 18%, var(--c) 36%, transparent 70%); box-shadow: 0 0 18px var(--c), 0 0 4px #fff; animation: pulse 1.1s ease-in-out infinite; }
+.ev .lbl { font-size: 11px; font-weight: 600; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: rgba(7, 6, 14, .85); border: 1px solid var(--c); color: var(--text); }
+.ev .lbl span { color: var(--c); }
+@keyframes pulse { 50% { transform: scale(1.18); } }
+#floaters { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.floater { position: absolute; font-family: var(--mono); font-size: 13px; color: var(--mass); text-shadow: 0 0 8px rgba(255, 173, 90, .8); animation: rise .9s ease-out forwards; white-space: nowrap; }
+@keyframes rise { to { transform: translateY(-46px); opacity: 0; } }
+
+/* Kontrollpult */
+.panel { min-height: 0; overflow: auto; border-left: 1px solid var(--line); background: var(--panel); }
+.tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; overflow-x: auto; padding-inline: 10px; padding-block: 8px 0; background: var(--panel); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tabs button { position: relative; flex: none; background: none; border: 0; padding: 8px 11px 10px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .02em; border-radius: 6px 6px 0 0; }
+.tabs button[aria-selected="true"] { color: var(--text); }
+.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--disk); }
+.tabs button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--disk); margin-left: 5px; vertical-align: 2px; }
+.tab { padding-inline: 16px; padding-block: 14px 28px; display: grid; gap: 12px; }
+.tab-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.tab-head h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 16px; letter-spacing: .02em; }
+.lede { margin: 0; color: var(--muted); font-size: 13px; max-width: 62ch; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { background: none; border: 0; padding: 4px 10px; font-size: 12px; font-family: var(--mono); cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--panel-3); color: var(--text); }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.toggle input { accent-color: var(--disk); }
+
+.list { display: grid; gap: 6px; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 9px 10px 9px 12px; border-radius: 9px; background: var(--panel-2); border: 1px solid transparent;
+}
+.row.locked { opacity: .55; border-style: dashed; border-color: var(--line); background: transparent; }
+.row-main { min-width: 0; display: grid; gap: 2px; }
+.row-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.row-head b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-head .n { font-family: var(--mono); font-size: 13px; color: var(--disk); font-variant-numeric: tabular-nums; }
+.row-flavor { font-size: 12px; color: var(--muted); }
+.row-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row-meta .hi { color: var(--text); }
+.share { height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .06); overflow: hidden; margin-top: 3px; }
+.share i { display: block; height: 100%; width: 0; background: var(--disk); }
+.buy {
+  min-width: 104px; display: grid; justify-items: center; gap: 0; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--disk) 60%, transparent); background: color-mix(in srgb, var(--disk) 14%, transparent);
+  font-size: 12px; font-weight: 600;
+}
+.buy span { font-family: var(--mono); font-weight: 400; font-size: 11.5px; color: var(--disk); white-space: nowrap; }
+.buy:hover:not(:disabled) { background: color-mix(in srgb, var(--disk) 26%, transparent); }
+.buy:disabled { cursor: default; opacity: .42; }
+.buy.plasma { border-color: color-mix(in srgb, var(--plasma) 60%, transparent); background: color-mix(in srgb, var(--plasma) 12%, transparent); }
+.buy.plasma span { color: var(--plasma); }
+.buy.plasma:hover:not(:disabled) { background: color-mix(in srgb, var(--plasma) 24%, transparent); }
+.buy.de { border-color: color-mix(in srgb, var(--dark) 60%, transparent); background: color-mix(in srgb, var(--dark) 12%, transparent); }
+.buy.de span { color: var(--dark); }
+.buy.hq { border-color: color-mix(in srgb, var(--quant) 60%, transparent); background: color-mix(in srgb, var(--quant) 12%, transparent); }
+.buy.hq span { color: var(--quant); }
+.empty { padding: 14px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; }
+.sub-h { margin: 6px 0 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.owned { display: flex; flex-wrap: wrap; gap: 5px; }
+.owned span { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+
+/* Jets */
+.spin-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px; border-radius: 10px; background: var(--panel-2); }
+.spin-card canvas { width: 84px; height: 84px; }
+.spin-card dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 12.5px; }
+.spin-card dt { color: var(--muted); }
+.spin-card dd { margin: 0; font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Raumzeit-Baum */
+.tree-wrap { border-radius: 10px; background: radial-gradient(circle at 50% 50%, var(--panel-3), var(--panel) 70%); border: 1px solid var(--line); }
+.tree-wrap svg { width: 100%; height: auto; display: block; max-width: 100%; }
+.tree-wrap .edge { stroke: var(--line); stroke-width: .6; }
+.tree-wrap .edge.on { stroke: var(--muted); }
+.tnode { cursor: pointer; }
+.tnode circle { fill: var(--panel); stroke: var(--line); stroke-width: .8; }
+.tnode.avail circle { stroke: var(--c); stroke-dasharray: 1.4 1; }
+.tnode.afford circle { stroke-dasharray: none; filter: drop-shadow(0 0 1.6px var(--c)); }
+.tnode.own circle { fill: var(--c); stroke: var(--c); }
+.tnode.sel circle { stroke: var(--text); stroke-width: 1.2; }
+.tnode text { font-family: var(--body); font-size: 2.9px; fill: var(--muted); text-anchor: middle; }
+.tnode.own text, .tnode.sel text { fill: var(--text); }
+.tnode .glyph { font-family: var(--mono); font-size: 3.2px; fill: var(--text); dominant-baseline: central; }
+.tnode.own .glyph { fill: var(--void); }
+.branch-lbl { font-family: var(--display); font-size: 2.6px; letter-spacing: .3px; fill: var(--muted); opacity: .7; }
+.node-detail { padding: 12px; border-radius: 10px; background: var(--panel-2); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.node-detail h3 { margin: 0 0 2px; font-size: 14px; }
+.node-detail p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+/* Leiter */
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; }
+.rung { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 12px; padding-block: 0 12px; position: relative; }
+.rung::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 0; width: 2px; background: var(--line); }
+.rung:last-child::before { display: none; }
+.rung .pin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); background: var(--panel); margin-top: 2px; position: relative; z-index: 1; }
+.rung.done .pin { background: var(--disk); border-color: var(--disk); }
+.rung.done::before { background: color-mix(in srgb, var(--disk) 55%, var(--line)); }
+.rung.next .pin { border-color: var(--mass); box-shadow: 0 0 10px var(--disk); }
+.rung h3 { margin: 0; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.rung h3 span { font-family: var(--mono); font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.rung p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.rung.future h3 { color: var(--muted); }
+.rung.goal h3 { font-family: var(--display); color: var(--dark); }
+
+/* Erfolge */
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 6px; }
+.ach { padding: 8px 9px; border-radius: 8px; background: var(--panel-2); border: 1px solid transparent; display: grid; gap: 2px; }
+.ach b { font-size: 12.5px; font-weight: 600; }
+.ach small { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.ach.got { border-color: color-mix(in srgb, var(--disk) 50%, transparent); }
+.ach.got b { color: var(--disk); }
+.ach:not(.got) { opacity: .5; }
+
+/* Optionen */
+.opt { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--panel-2); }
+.opt h3 { margin: 0; font-size: 13.5px; }
+.opt p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.opt textarea { width: 100%; min-height: 70px; resize: vertical; background: var(--void); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 8px; font-family: var(--mono); font-size: 11px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-3); cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.btn:hover { border-color: var(--muted); }
+.btn.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); background: transparent; }
+.btn.primary { border-color: var(--disk); background: color-mix(in srgb, var(--disk) 20%, transparent); }
+.btn.dark { border-color: var(--dark); background: color-mix(in srgb, var(--dark) 20%, transparent); }
+.stats { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; font-size: 12.5px; }
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Meldungen und Dialoge */
+#toasts { position: fixed; left: 16px; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; z-index: 20; width: min(340px, calc(100vw - 32px)); pointer-events: none; }
+.toast { padding: 10px 13px; border-radius: 10px; background: rgba(22, 18, 41, .96); border: 1px solid var(--line); border-left: 3px solid var(--c, var(--disk)); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: tin .25s ease-out; }
+.toast b { display: block; font-size: 13px; }
+.toast span { font-size: 12.5px; color: var(--muted); }
+@keyframes tin { from { transform: translateY(8px); opacity: 0; } }
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(4, 3, 9, .78); backdrop-filter: blur(3px); }
+.modal-card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 22px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line); display: grid; gap: 12px; box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
+.modal-card h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 20px; text-wrap: balance; }
+.modal-card p { margin: 0; color: var(--muted); font-size: 14px; }
+.modal-card p b { color: var(--text); }
+.modal-card .big { font-family: var(--display); font-size: 28px; color: var(--dark); }
+.modal-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; display: grid; gap: 3px; }
+
+@media (max-width: 880px) {
+  .app { height: auto; min-height: 100%; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .stage { height: min(64vh, 540px); min-height: 380px; }
+  .panel { overflow: visible; border-left: 0; border-top: 1px solid var(--line); }
+  .hud-tl { max-width: 70%; }
+  .coin { min-width: 0; flex: 1 1 96px; }
+  .wallet { width: 100%; }
+}
+@media (max-width: 520px) {
+  .meters { grid-template-columns: 1fr; gap: 6px; }
+  .facts { gap: 2px 12px; }
+  .hud-tr .flow b { font-size: 12.5px; }
+  .mass { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev .orb, .hint-start { animation: none; }
+  .floater { animation-duration: .5s; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Ereignishorizont</h1>
+      <p>Vom Planck-Loch zu TON 618</p>
+    </div>
+    <div class="wallet">
+      <div class="coin c-energy" title="Energie aus der Akkretion. Damit kaufst du Quellen und Upgrades."><small>Energie</small><b id="w-energy">0 J</b><i id="w-energy-r">+0 J/s</i></div>
+      <div class="coin c-plasma" id="coin-plasma" hidden title="Materie, die deine Jets über dem Eddington-Limit wegschleudern."><small>Jet-Plasma</small><b id="w-plasma">0</b><i id="w-plasma-r"></i></div>
+      <div class="coin c-quant" id="coin-quant" hidden title="Hawking-Quanten entstehen, wenn du verdampfst. Bleiben über Urknalle hinweg erhalten."><small>Hawking-Quanten</small><b id="w-quant">0</b><i id="w-quant-r"></i></div>
+      <div class="coin c-dark" id="coin-dark" hidden title="Dunkle Energie aus Urknallen. Für den Raumzeit-Baum; jede jemals gewonnene Einheit gibt +10 % Zufluss."><small>Dunkle Energie</small><b id="w-dark">0</b><i id="w-dark-r"></i></div>
+    </div>
+    <button class="urknall" id="btn-urknall" hidden>Urknall auslösen · <b id="urk-gain">+0</b></button>
+  </header>
+
+  <main class="layout">
+    <section class="stage" id="stage">
+      <canvas id="space" aria-hidden="true"></canvas>
+      <button class="hit" id="hit" aria-label="Gravitationspuls: Materie einfangen (Leertaste)"></button>
+      <div class="hint-start" id="hint-start">Klicke auf das Loch. Du verdampfst!</div>
+      <div class="hud hud-tl">
+        <span class="eyebrow">Masse</span>
+        <div class="mass" id="h-mass">21,8 µg</div>
+        <div class="mass-sub" id="h-next"></div>
+        <dl class="facts">
+          <div><dt>Horizont</dt><dd id="h-radius">–</dd></div>
+          <div><dt>Hawking-Temp.</dt><dd id="h-temp">–</dd></div>
+          <div id="h-spin-wrap" hidden><dt>Spin a</dt><dd id="h-spin">0</dd></div>
+        </dl>
+      </div>
+      <div class="hud hud-tr">
+        <div class="flow"><small>Zufluss</small><b id="h-supply">0</b></div>
+        <div class="flow evap" id="h-evap-wrap"><small>Verdampfung</small><b id="h-evap">0</b></div>
+      </div>
+      <div class="hud hud-bottom">
+        <div class="buffs" id="buffs"></div>
+        <div class="meters">
+          <div class="meter" id="m-edd">
+            <div class="meter-top"><span>Eddington-Limit</span><b id="m-edd-v">0 %</b></div>
+            <div class="bar"><i id="m-edd-bar"></i><em></em></div>
+          </div>
+          <div class="meter">
+            <div class="meter-top"><span>Weg zu TON 618</span><b id="m-prog-v">0 %</b></div>
+            <div class="bar prog"><i id="m-prog-bar"></i></div>
+          </div>
+        </div>
+        <p class="ticker" id="ticker"></p>
+      </div>
+      <div id="events"></div>
+      <div id="floaters"></div>
+    </section>
+
+    <section class="panel" aria-label="Kontrollpult">
+      <nav class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="quellen" aria-selected="true">Quellen</button>
+        <button role="tab" data-tab="upgrades">Upgrades</button>
+        <button role="tab" data-tab="jets" hidden>Jets</button>
+        <button role="tab" data-tab="baum" hidden>Raumzeit</button>
+        <button role="tab" data-tab="leiter">Leiter</button>
+        <button role="tab" data-tab="erfolge">Erfolge</button>
+        <button role="tab" data-tab="optionen">Optionen</button>
+      </nav>
+
+      <div class="tab" id="tab-quellen" role="tabpanel">
+        <div class="tab-head">
+          <h2>Quellen</h2>
+          <div class="seg" id="buy-amt" aria-label="Kaufmenge">
+            <button data-amt="1" aria-pressed="true">×1</button><button data-amt="10" aria-pressed="false">×10</button><button data-amt="max" aria-pressed="false">Max</button>
+          </div>
+        </div>
+        <p class="lede">Quellen lenken Materie in deine Akkretionsscheibe. Je schwerer du bist, desto mehr ziehen sie heran (×√Masse), aber alte Quellen verlieren gegenüber deiner Größe an Gewicht. Je 25 Stück verdoppeln eine Quelle.</p>
+        <label class="toggle" id="autobuy-wrap" hidden><input type="checkbox" id="autobuy"> Automatisch kaufen</label>
+        <div class="list" id="src-list"></div>
+      </div>
+
+      <div class="tab" id="tab-upgrades" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Upgrades</h2><label class="toggle" id="autoup-wrap" hidden><input type="checkbox" id="autoup"> Automatisch kaufen</label></div>
+        <div class="list" id="up-list"></div>
+        <p class="sub-h" id="up-owned-h" hidden>Gekauft</p>
+        <div class="owned" id="up-owned"></div>
+      </div>
+
+      <div class="tab" id="tab-jets" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Jets &amp; Spin</h2></div>
+        <p class="lede">Strömt mehr Materie heran, als dein Eddington-Limit erlaubt, drückt der Strahlungsdruck sie zurück. Sie schießt als Jet-Plasma an den Polen hinaus. Mit Plasma drehst du dein Loch schneller: Mehr Spin heißt höhere Strahlungseffizienz η (bis 32 % von mc²) und stärkere Jets.</p>
+        <div class="spin-card">
+          <canvas id="spin-cv" width="168" height="168" aria-hidden="true"></canvas>
+          <dl>
+            <dt>Spin a</dt><dd id="j-a">0</dd>
+            <dt>Effizienz η</dt><dd id="j-eta">5,72 %</dd>
+            <dt>Innerste Bahn</dt><dd id="j-isco">6,00 r<sub>g</sub></dd>
+            <dt>Plasma-Ausbeute</dt><dd id="j-mult">×1</dd>
+          </dl>
+        </div>
+        <div class="list" id="jet-list"></div>
+      </div>
+
+      <div class="tab" id="tab-baum" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Raumzeit-Baum</h2></div>
+        <p class="lede">Dauerhafte Verbesserungen, die jeden Urknall überleben. Die Knoten links kosten Hawking-Quanten, alle anderen Dunkle Energie. Ein Knoten wird verfügbar, sobald ein Nachbar zur Mitte hin freigeschaltet ist.</p>
+        <div class="tree-wrap"><svg id="tree-svg" viewBox="-13 -9 126 120" role="group" aria-label="Raumzeit-Baum"></svg></div>
+        <div class="node-detail" id="node-detail"></div>
+      </div>
+
+      <div class="tab" id="tab-leiter" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Kosmische Leiter</h2></div>
+        <p class="lede">Echte Massen, echte Horizonte. Jede Stufe zählt als Erfolg.</p>
+        <ol class="ladder" id="ladder"></ol>
+      </div>
+
+      <div class="tab" id="tab-erfolge" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Erfolge</h2><span class="row-meta" id="ach-sum"></span></div>
+        <p class="lede">Jeder Erfolg erhöht den Zufluss dauerhaft um 2 %.</p>
+        <div class="ach-grid" id="ach-grid"></div>
+      </div>
+
+      <div class="tab" id="tab-optionen" role="tabpanel" hidden>
+        <div class="tab-head"><h2>Optionen</h2></div>
+        <div class="opt">
+          <h3>Test-Zeitraffer</h3>
+          <p>Nur zum Testen: Alles läuft schneller, auch Ereignisse und Verdampfung.</p>
+          <div class="seg" id="speed-seg"><button data-speed="1" aria-pressed="true">×1</button><button data-speed="5" aria-pressed="false">×5</button><button data-speed="25" aria-pressed="false">×25</button><button data-speed="100" aria-pressed="false">×100</button></div>
+        </div>
+        <div class="opt">
+          <h3>Darstellung</h3>
+          <label class="toggle"><input type="checkbox" id="lowfx"> Weniger Partikel</label>
+        </div>
+        <div class="opt">
+          <h3>Statistik</h3>
+          <dl class="stats" id="stats"></dl>
+        </div>
+        <div class="opt">
+          <h3>Spielstand</h3>
+          <p>Wird alle 15 Sekunden in diesem Browser gespeichert. Zum Umziehen auf ein anderes Gerät: Text kopieren, dort einfügen, laden.</p>
+          <textarea id="save-text" spellcheck="false" aria-label="Spielstand als Text"></textarea>
+          <div class="btns">
+            <button class="btn" id="btn-export">Spielstand anzeigen &amp; kopieren</button>
+            <button class="btn" id="btn-import">Eingefügten Stand laden</button>
+            <button class="btn" id="btn-save">Jetzt speichern</button>
+          </div>
+          <p id="save-msg"></p>
+        </div>
+        <div class="opt">
+          <h3>Neu anfangen</h3>
+          <p>Löscht alles: Masse, Raumzeit-Baum, Erfolge.</p>
+          <div class="btns"><button class="btn danger" id="btn-reset">Spielstand löschen</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div class="modal" id="modal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" id="modal-card"></div></div>
+
+<script>
+// ==ENGINE==
+// Physik als Würze, Zahlen als Spielwerte. Massen in kg, Energie in J.
+const C2 = 8.98755e16;
+const MP = 2.176e-8;              // Planck-Masse
+const MSUN = 1.989e30;
+const MEARTH = 5.972e24;
+const MTON = 6.6e10 * MSUN;       // TON 618
+const KG = 0.0572 * C2;           // J pro kg bei Schwarzschild-Effizienz
+const URKNALL_MIN = 8.1e14;       // Mount Everest
+const CMB_MASS = 4.5e22;          // Hawking-Temperatur = 2,7 K
+const BAL = { r0: 0.012, rg: 0.35, cf: 0.08, cg: 1.15, kE: 0.03, soft: 0.2, ev0: 1e-9, click: 2.5e-9, hqUnit: MP * 0.01, de: 2, deExp: 0.08 };
+
+function etaFromSpin(a) {
+  const z1 = 1 + Math.cbrt(1 - a * a) * (Math.cbrt(1 + a) + Math.cbrt(1 - a));
+  const z2 = Math.sqrt(3 * a * a + z1 * z1);
+  const r = 3 + z2 - Math.sqrt((3 - z1) * (3 + z1 + 2 * z2));
+  return { eta: 1 - Math.sqrt(1 - 2 / (3 * r)), isco: r };
+}
+function spinFromLevel(lv) { return 0.998 * (1 - Math.pow(0.86, lv)); }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+// Zahlenformate (deutsch)
+const NF = {};
+function nf(dg) { return NF[dg] || (NF[dg] = new Intl.NumberFormat('de-DE', { minimumFractionDigits: dg, maximumFractionDigits: dg })); }
+function fmtNum(x, dg) { return nf(dg).format(x); }
+const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+function sup(n) { return String(n).split('').map(c => SUPS[c] || c).join(''); }
+function sig(x) { const a = Math.abs(x); return a >= 99.95 ? nf(0).format(x) : a >= 9.995 ? nf(1).format(x) : nf(2).format(x); }
+function sci(x) {
+  if (!isFinite(x)) return '∞';
+  if (x === 0) return '0';
+  let e = Math.floor(Math.log10(Math.abs(x)));
+  let m = x / Math.pow(10, e);
+  if (Math.abs(m) >= 9.995) { m /= 10; e++; }
+  return nf(2).format(m) + '·10' + sup(e);
+}
+const BIG = [[1e18, 'Trio.'], [1e15, 'Brd.'], [1e12, 'Bio.'], [1e9, 'Mrd.'], [1e6, 'Mio.'], [1e3, 'Tsd.']];
+function fmtCount(x) {
+  const a = Math.abs(x);
+  if (a < 1000) return sig(x);
+  if (a >= 1e21) return sci(x);
+  for (const [v, n] of BIG) if (a >= v) return sig(x / v) + ' ' + n;
+  return sig(x);
+}
+function fmtInt(x) { return Math.abs(x) < 1e6 ? nf(0).format(Math.floor(x)) : fmtCount(x); }
+function fmtMass(kg) {
+  const a = Math.abs(kg);
+  if (a === 0) return '0 kg';
+  if (a < 1e-15) return sci(kg) + ' kg';
+  if (a < 1e-12) return sig(kg * 1e15) + ' pg';
+  if (a < 1e-9) return sig(kg * 1e12) + ' ng';
+  if (a < 1e-6) return sig(kg * 1e9) + ' µg';
+  if (a < 1e-3) return sig(kg * 1e6) + ' mg';
+  if (a < 1) return sig(kg * 1e3) + ' g';
+  if (a < 1e3) return sig(kg) + ' kg';
+  if (a < 1e15) return fmtCount(kg / 1e3) + ' t';
+  if (a < 1e24) return sci(kg) + ' kg';
+  if (a < 0.05 * MSUN) return fmtCount(kg / MEARTH) + ' M⊕';
+  return fmtCount(kg / MSUN) + ' M☉';
+}
+const EPRE = ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 'R', 'Q'];
+function fmtEnergy(j) {
+  if (!(j > 0)) return '0 J';
+  if (j < 1) return sig(j) + ' J';
+  let e = Math.floor(Math.log10(j) / 3);
+  if (j / Math.pow(1000, e) >= 999.5) e++;
+  if (e < EPRE.length) return sig(j / Math.pow(1000, e)) + ' ' + EPRE[e] + 'J';
+  return sci(j) + ' J';
+}
+function fmtLength(m) {
+  if (m < 1e-15) return sci(m) + ' m';
+  if (m < 1e-12) return sig(m * 1e15) + ' fm';
+  if (m < 1e-9) return sig(m * 1e12) + ' pm';
+  if (m < 1e-6) return sig(m * 1e9) + ' nm';
+  if (m < 1e-3) return sig(m * 1e6) + ' µm';
+  if (m < 1) return sig(m * 1e3) + ' mm';
+  if (m < 1e3) return sig(m) + ' m';
+  if (m < 1.5e10) return fmtCount(m / 1e3) + ' km';
+  if (m < 9.46e15) return fmtCount(m / 1.496e11) + ' AE';
+  return fmtCount(m / 9.461e15) + ' Lj';
+}
+function fmtTemp(k) { return (k >= 1e4 || k < 0.01) ? sci(k) + ' K' : sig(k) + ' K'; }
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  if (sec < 60) return sec + ' s';
+  const m = Math.floor(sec / 60) % 60, h = Math.floor(sec / 3600) % 24, dd = Math.floor(sec / 86400);
+  if (sec < 3600) return m + ' min ' + (sec % 60) + ' s';
+  if (sec < 86400) return h + ' h ' + m + ' min';
+  return dd + ' d ' + h + ' h';
+}
+const schwarzschild = m => 1.4852e-27 * m;
+const hawkingT = m => 1.2269e23 / m;
+function progressTo(m) { return clamp(Math.log10(m / MP) / Math.log10(MTON / MP), 0, 1); }
+
+const SOURCES = [
+  { id: 'vak', name: 'Vakuumfluktuationen', flavor: 'Virtuelle Teilchenpaare am Horizont. Eines fällt hinein, eines entkommt.', up: ['Casimir-Falle', 'Schwinger-Effekt'] },
+  { id: 'staub', name: 'Kosmischer Staub', flavor: 'Silikat- und Kohlenstoffkörnchen, kaum größer als Rauch.', up: ['Staubfänger', 'Elektrostatische Bündelung'] },
+  { id: 'gas', name: 'Wasserstoffwolke', flavor: 'Das häufigste Element des Universums, kalt und dünn.', up: ['Molekülkühlung', 'Jeans-Instabilität'] },
+  { id: 'mikro', name: 'Mikrometeoriten', flavor: 'Sandkorngroße Geschosse mit 70 km/s.', up: ['Gravitationstrichter', 'Einschlagskaskade'] },
+  { id: 'meteor', name: 'Meteoroiden', flavor: 'Felsbrocken, die sonst als Sternschnuppe enden würden.', up: ['Bahnstörung', 'Roche-Mühle'] },
+  { id: 'aster', name: 'Asteroiden', flavor: 'Geröll aus der Kinderstube der Planeten.', up: ['Kirkwood-Lücken', 'Jarkowski-Schub'] },
+  { id: 'komet', name: 'Kometen', flavor: 'Schmutzige Schneebälle aus der Oortschen Wolke.', up: ['Oort-Störung', 'Kuipergürtel-Sog'] },
+  { id: 'mond', name: 'Monde', flavor: 'Gezeitenkräfte zerlegen sie, bevor sie den Horizont erreichen.', up: ['Gezeitenbremse', 'Roche-Grenze'] },
+  { id: 'planet', name: 'Planeten', flavor: 'Gesteinswelten, Gasriesen, Ozeanplaneten. Alles Futter.', up: ['Planetenmigration', 'Heiße Jupiter'] },
+  { id: 'zwerg', name: 'Rote Zwerge', flavor: 'Die häufigsten Sterne der Galaxis. Klein, zäh, langlebig.', up: ['Fluchtsterne', 'Flare-Ernte'] },
+  { id: 'stern', name: 'Sterne', flavor: 'Wer zu nah kommt, wird in einer Gezeitenzerreißung zu Spaghetti.', up: ['Hills-Mechanismus', 'Spaghettifizierung'] },
+  { id: 'neutron', name: 'Neutronensterne', flavor: 'Ein Teelöffel davon wiegt eine Milliarde Tonnen.', up: ['Magnetar-Einfang', 'Kilonova'] },
+  { id: 'haufen', name: 'Sternhaufen', flavor: 'Hunderttausende Sterne, eng gepackt und gravitativ gebunden.', up: ['Kernkollaps', 'Massensegregation'] },
+  { id: 'loch', name: 'Schwarze Löcher', flavor: 'Verschmelzungen lassen die Raumzeit klingeln.', up: ['Binärschrumpfung', 'Ringdown'] },
+  { id: 'zwerggal', name: 'Zwerggalaxien', flavor: 'Satellitengalaxien, die dir zu nahe gekommen sind.', up: ['Galaktischer Kannibalismus', 'Sternströme'] },
+  { id: 'galaxie', name: 'Galaxien', flavor: 'Ganze Spiralgalaxien stürzen in deine Heimat.', up: ['Galaxienverschmelzung', 'Kühlströme'] },
+  { id: 'filament', name: 'Kosmisches Netz', flavor: 'Gasfilamente zwischen Galaxienhaufen strömen direkt zu dir.', up: ['Kalte Ströme', 'Großer Attraktor'] },
+];
+SOURCES.forEach((q, i) => { q.U = i ? Math.pow(10, 3 * i - 9) : MP; });
+
+// Upgrades für Energie: je Quelle zwei, dazu allgemeine
+const UPGRADES = [];
+SOURCES.forEach((q, i) => {
+  UPGRADES.push({ id: 's' + i + 'a', name: q.up[0], desc: q.name + ' ×2.', src: i, need: 10, mult: 2, cost: 0, avail: s => s.src[i] >= 10 });
+  UPGRADES.push({ id: 's' + i + 'b', name: q.up[1], desc: q.name + ' ×3.', src: i, need: 40, mult: 3, cost: 0, avail: s => s.src[i] >= 40 });
+});
+const GENERIC = [
+  ['puls1', 'Photonensphäre', 'Gravitationspuls ×2.', 6e-8, 1, { click: 2 }, s => s.stats.clicksRun >= 10],
+  ['disk1', 'Akkretionsscheibe', 'Alle Quellen ×1,5.', 3e-7, 1, { src: 1.5 }],
+  ['puls2', 'Gravitationslinse', 'Jeder Puls fängt zusätzlich 5 % der Akkretion einer Sekunde.', 2e-6, 1, { clickFrac: 0.05 }],
+  ['eff1', 'Strahlungseffizienz', 'Energie ×1,5.', 3e-5, 1, { energy: 1.5 }],
+  ['disk2', 'Magnetorotation', 'Alle Quellen ×2.', 3e-3, 1, { src: 2 }],
+  ['ev1', 'Gezeitenfühler', 'Ereignisse bringen 50 % mehr.', 0.05, 1, { ev: 1.5 }, s => s.stats.events >= 1],
+  ['puls3', 'Ergosphäre', 'Gravitationspuls ×3 und +5 % der Akkretion.', 0.3, 1, { click: 3, clickFrac: 0.05 }],
+  ['edd1', 'Eddington-Feinabstimmung', 'Eddington-Limit ×1,25.', 30, 1, { edd: 1.25 }, s => s.seenPlasma],
+  ['disk3', 'Viskose Reibung', 'Alle Quellen ×2.', 1e4, 1, { src: 2 }],
+  ['eff2', 'Innerste stabile Bahn', 'Energie ×2.', 1e7, 1, { energy: 2 }],
+  ['puls4', 'Raumzeit-Peitsche', 'Gravitationspuls +10 % der Akkretion.', 1e9, 1, { clickFrac: 0.1 }],
+  ['disk4', 'Jet-getriebene Sternentstehung', 'Alle Quellen ×3.', 1e12, 1, { src: 3 }],
+  ['edd2', 'Strahlungsdruck-Kanäle', 'Eddington-Limit ×1,5.', 1e14, 1, { edd: 1.5 }],
+  ['ev2', 'Gezeitenradar', 'Ereignisse bringen doppelt so viel.', 1e16, 1, { ev: 2 }],
+  ['disk5', 'Gravitationsdrehmoment', 'Alle Quellen ×3.', 1e18, 1, { src: 3 }],
+  ['eff3', 'Penrose-Prozess', 'Energie ×3.', 1e22, 1, { energy: 3 }],
+  ['disk6', 'Galaktischer Balken', 'Alle Quellen ×4.', 1e25, 1, { src: 4 }],
+  ['edd3', 'Photonenblasen', 'Eddington-Limit ×1,5.', 1e28, 1, { edd: 1.5 }],
+  ['disk7', 'Dunkle-Materie-Kanäle', 'Alle Quellen ×5.', 1e31, 1, { src: 5 }],
+  ['puls5', 'Horizont-Resonanz', 'Gravitationspuls ×10 und +15 % der Akkretion.', 1e33, 1, { click: 10, clickFrac: 0.15 }],
+  ['disk8', 'Kosmische Schleuse', 'Alle Quellen ×6.', 1e35, 1, { src: 6 }],
+  ['edd4', 'Super-Eddington-Kollaps', 'Eddington-Limit ×2.', 1e37, 1, { edd: 2 }],
+  ['disk9', 'Laniakea-Strom', 'Alle Quellen ×8.', 1e39, 1, { src: 8 }],
+].map(([id, name, desc, m, f, fx, extra]) => ({ id, name, desc, fx, reqMass: m, cost: m * KG * f, avail: s => s.maxMass >= m && (!extra || extra(s)) }));
+// Grundstärke je Quelle: fällt pro Stufe um BAL.rg und gleicht die bis dahin freischaltbaren Quellen-Multiplikatoren aus,
+// damit jede Stufe etwas schwerer ist als die vorige. Ohne Urknall-Boni entsteht so irgendwann eine Wand.
+function setupSources() {
+  SOURCES.forEach((q, i) => {
+    let m = 1;
+    for (const g of GENERIC) if (g.fx.src && g.reqMass <= q.U * 1.0001) m *= g.fx.src;
+    q.rate = BAL.r0 * Math.pow(BAL.rg, i) / m;
+    q.cost = BAL.cf * q.U * KG * (i ? 1 : 2);
+  });
+  for (const u of UPGRADES) if (u.src !== undefined) { const q = SOURCES[u.src]; u.cost = q.cost * Math.pow(BAL.cg, u.need) * 3; }
+}
+UPGRADES.push(...GENERIC);
+setupSources();
+const UP_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+
+// Jet-Stufen, bezahlt mit Plasma (kg)
+const JETS = [
+  { id: 'spin', name: 'Drehimpuls', desc: 'Spin a steigt. Höhere Effizienz η, stärkere Jets.', base: 2e-8, g: 6, max: 45 },
+  { id: 'edd', name: 'Super-Eddington', desc: 'Eddington-Limit +10 % des Grundwerts.', base: 6e-8, g: 10, max: 25 },
+  { id: 'leak', name: 'Photonenfalle', desc: 'Überschuss über dem Limit wird besser verschluckt (Exponent +0,03).', base: 1.5e-7, g: 30, max: 5 },
+  { id: 'puls', name: 'Jet-Rückstoß', desc: 'Gravitationspuls ×1,5.', base: 4e-8, g: 6 },
+];
+
+// Raumzeit-Baum (dauerhaft). x/y im SVG-Raster.
+const TREE = [
+  { id: 'kern', x: 50, y: 50, g: '◉', short: 'Singularität', name: 'Singularität', desc: 'Quellen ×1,5. Der Ursprung jedes neuen Universums.', cost: 1, req: [] },
+  { id: 'a1', x: 50, y: 36, g: '×2', short: 'Scheibe', name: 'Dichte Scheibe', desc: 'Quellen ×2.', cost: 1, req: ['kern'] },
+  { id: 'a2', x: 37, y: 25, g: '▶', short: 'Urmaterie', name: 'Urmaterie', desc: 'Jedes Universum startet mit 20 Vakuumfluktuationen und 10 Kosmischem Staub.', cost: 2, req: ['a1'] },
+  { id: 'a3', x: 63, y: 25, g: '%', short: 'Rabatt', name: 'Massenrabatt', desc: 'Quellen werden pro Stück nur noch 13 % statt 15 % teurer.', cost: 4, req: ['a1'] },
+  { id: 'a4', x: 50, y: 13, g: '∑', short: 'Hierarchie', name: 'Hierarchisches Wachstum', desc: 'Jede Quellenart, die du besitzt: Quellen +15 %.', cost: 10, req: ['a2', 'a3'] },
+  { id: 'a5', x: 50, y: 0, g: '×5', short: 'Quasar', name: 'Quasar-Zündung', desc: 'Quellen ×5.', cost: 60, req: ['a4'] },
+  { id: 'c1', x: 64, y: 50, g: 'L', short: 'Eddington', name: 'Super-Eddington', desc: 'Eddington-Limit ×1,5.', cost: 1, req: ['kern'] },
+  { id: 'c2', x: 76, y: 37, g: '↻', short: 'Frame-Drag', name: 'Frame-Dragging', desc: 'Spin startet jedes Universum mit 5 Stufen. Spin-Stufen kosten die Hälfte.', cost: 3, req: ['c1'] },
+  { id: 'c3', x: 76, y: 63, g: '∩', short: 'Leck', name: 'Strahlungsleck', desc: 'Überschuss über dem Limit wird besser verschluckt (Exponent +0,05).', cost: 3, req: ['c1'] },
+  { id: 'c4', x: 88, y: 50, g: 't', short: 'Dilatation', name: 'Zeitdilatation', desc: 'Alles läuft 25 % schneller.', cost: 12, req: ['c2', 'c3'] },
+  { id: 'c5', top: true, x: 100, y: 50, g: '⇅', short: 'B.-Znajek', name: 'Blandford-Znajek', desc: 'Plasma ×3, Eddington-Limit ×1,5.', cost: 50, req: ['c4'] },
+  { id: 'q1', x: 36, y: 50, g: '±', short: 'Paare', name: 'Virtuelle Paare', desc: 'Gravitationspuls ×3.', cost: 10, cur: 'hq', req: ['kern'] },
+  { id: 'q2', x: 24, y: 37, g: 'ħ', short: 'Echo', name: 'Hawking-Echo', desc: 'Hawking-Quanten ×2.', cost: 30, cur: 'hq', req: ['q1'] },
+  { id: 'q3', x: 24, y: 63, g: '⟳', short: 'Automat', name: 'Quantenautomat', desc: 'Automatischer Gravitationspuls, 3× pro Sekunde.', cost: 45, cur: 'hq', req: ['q1'] },
+  { id: 'q4', x: 12, y: 50, g: '~', short: 'Tunnel', name: 'Tunneleffekt', desc: 'Offline-Fortschritt 100 % statt 50 %, bis zu 12 statt 8 Stunden.', cost: 90, cur: 'hq', req: ['q2', 'q3'] },
+  { id: 'q5', top: true, x: 0, y: 50, g: 'i', short: 'Paradoxon', name: 'Informationsparadoxon', desc: 'Jedes Hawking-Quant im Bestand: Energie +0,4 %.', cost: 200, cur: 'hq', req: ['q4'] },
+  { id: 'k1', x: 50, y: 64, g: '✶', short: 'Netz', name: 'Kosmisches Netz', desc: 'Ereignisse erscheinen 40 % häufiger.', cost: 1, req: ['kern'] },
+  { id: 'k2', x: 37, y: 75, g: '≈', short: 'Gezeiten', name: 'Gezeitenzerreißer', desc: 'Ereignisse bringen doppelt so viel und bleiben 50 % länger.', cost: 3, req: ['k1'] },
+  { id: 'k3', x: 63, y: 75, g: 'A', short: 'Autokauf', name: 'Automatisierung', desc: 'Kauft automatisch Quellen (im Reiter Quellen abschaltbar).', cost: 5, req: ['k1'] },
+  { id: 'k4', x: 50, y: 87, g: '∞', short: 'Multiversum', name: 'Multiversum', desc: 'Dunkle Energie beim Urknall ×2.', cost: 15, req: ['k2', 'k3'] },
+  { id: 'k5', x: 50, y: 100, g: '○', short: 'Weißes Loch', name: 'Weißes Loch', desc: 'Kauft automatisch Upgrades und Jet-Stufen. Bonus der Dunklen Energie ×2.', cost: 40, req: ['k4'] },
+];
+const TREE_BY_ID = Object.fromEntries(TREE.map(n => [n.id, n]));
+
+const LADDER = [
+  { m: MP, name: 'Planck-Masse', text: 'Das kleinste denkbare schwarze Loch: 21,8 Mikrogramm auf 10⁻³⁵ Metern. Es verdampft fast sofort.' },
+  { m: 1e-6, name: 'Sandkorn', text: 'So schwer wie ein Sandkorn. Dein Horizont ist trotzdem 10 Milliarden Mal kleiner als ein Proton.' },
+  { m: 1e-3, name: 'Büroklammer', text: 'Ein Gramm. Du würdest durch jede Fingerspitze einfach hindurchfallen.' },
+  { m: 1, name: 'Ein Liter Wasser', text: 'Ein Kilogramm. Hawking-Temperatur: 10²³ Kelvin, heißer als jeder Stern.' },
+  { m: 1.2e3, name: 'Kleinwagen', text: 'Eine Tonne Masse in einem Punkt, eine halbe Milliarde Mal kleiner als ein Proton.' },
+  { m: 1.5e5, name: 'Blauwal', text: 'Das schwerste Tier, das je gelebt hat.' },
+  { m: 7.3e6, name: 'Eiffelturm', text: '7.300 Tonnen Stahl.' },
+  { m: 6e9, name: 'Cheops-Pyramide', text: 'Sechs Millionen Tonnen Kalkstein.' },
+  { m: 5e11, name: 'Primordiale Grenze', text: 'Urzeitliche schwarze Löcher dieser Masse verdampfen genau jetzt, 13,8 Milliarden Jahre nach dem Urknall.' },
+  { m: 2.2e14, name: 'Halleyscher Komet', text: 'Alle 76 Jahre zu Besuch. Diesmal bleibt er.' },
+  { m: URKNALL_MIN, name: 'Mount Everest', text: 'Ab jetzt kannst du einen Urknall auslösen und ein neues Universum beginnen.' },
+  { m: 9.4e20, name: 'Ceres', text: 'Der größte Brocken im Asteroidengürtel.' },
+  { m: CMB_MASS, name: 'Kälter als das All', text: 'Deine Hawking-Temperatur fällt unter 2,7 K, die Temperatur der Hintergrundstrahlung. Du verdampfst nicht mehr.' },
+  { m: 7.35e22, name: 'Mond', text: 'Der ganze Mond auf einem Horizont von 0,1 Millimetern.' },
+  { m: MEARTH, name: 'Erde', text: 'Die Erde, gepresst auf die Größe einer Murmel: 8,9 Millimeter.' },
+  { m: 1.9e27, name: 'Jupiter', text: 'Der größte Planet. Dein Horizont: 2,8 Meter.' },
+  { m: MSUN, name: 'Sonne', text: 'Eine Sonnenmasse auf 3 Kilometern Radius.' },
+  { m: 21.2 * MSUN, name: 'Cygnus X-1', text: 'Das erste Objekt, das als schwarzes Loch identifiziert wurde (1971).' },
+  { m: 2e4 * MSUN, name: 'HLX-1', text: 'Ein mittelschweres schwarzes Loch, die seltene Klasse zwischen Sternresten und Galaxienkernen.' },
+  { m: 4.3e6 * MSUN, name: 'Sagittarius A*', text: 'Das Herz der Milchstraße. Horizont: 12,7 Millionen Kilometer.' },
+  { m: 6.5e9 * MSUN, name: 'M87*', text: 'Das erste fotografierte schwarze Loch (2019).' },
+  { m: MTON, name: 'TON 618', text: '66 Milliarden Sonnenmassen. Eines der schwersten bekannten schwarzen Löcher. Das Ziel.' },
+];
+
+const EVENTS = [
+  { id: 'tde', name: 'Vagabundierender Stern', hint: 'Einfangen', w: 30, c: '#ffd27a' },
+  { id: 'filament', name: 'Gasfilament', hint: 'Anzapfen', w: 24, c: '#79d0ff' },
+  { id: 'quant', name: 'Quantenblase', hint: 'Ernten', w: 14, c: '#c4a0ff' },
+  { id: 'welle', name: 'Gravitationswelle', hint: 'Reiten', w: 14, c: '#8fe3a8' },
+  { id: 'schock', name: 'Supernova-Schockwelle', hint: 'Abwehren!', w: 12, c: '#ff6b57', bad: true },
+  { id: 'wurm', name: 'Wurmloch', hint: 'Hinein', w: 4, c: '#ff9de0' },
+  { id: 'string', name: 'Kosmischer String', hint: 'Greifen', w: 1.5, c: '#ff6aa8', need: s => s.stats.urknalls > 0 || s.maxMass >= URKNALL_MIN },
+];
+const EV_BY_ID = Object.fromEntries(EVENTS.map(e => [e.id, e]));
+
+function freshRun(s) {
+  s.mass = MP; s.maxMass = MP; s.energy = 0; s.plasma = 0;
+  s.src = SOURCES.map(() => 0); s.up = {}; s.jet = { spin: 0, edd: 0, leak: 0, puls: 0 };
+  s.buffs = []; s.runTime = 0; s.evNext = 45; s.autoAcc = 0; s.stats.clicksRun = 0;
+  if (s.tree.a2) { s.src[0] = 20; s.src[1] = 10; }
+}
+function newState() {
+  const s = {
+    v: 1, de: 0, deTotal: 0, hq: 0, hqTotal: 0, tree: {}, ach: {}, seenPlasma: false, won: false, flags: {},
+    stats: { clicks: 0, clicksRun: 0, events: 0, tde: 0, schock: 0, urknalls: 0, playTime: 0, bestMass: MP, plasmaTotal: 0, wonAt: 0 },
+    settings: { speed: 1, buyAmt: '1', autoBuy: true, autoUp: true, lowFx: false },
+    lastTick: Date.now(),
+  };
+  freshRun(s);
+  return s;
+}
+
+function calc(s) {
+  const t = s.tree, u = s.up, j = s.jet;
+  const d = { srcMult: [], global: 1, kE: BAL.kE, eMult: 1, click: 1, clickFrac: 0, hqMult: 1, evMult: 1, evFreq: 1, evDur: 1, cg: BAL.cg, speed: 1, auto: 0, buffSupply: 1, buffCap: 1, buffClick: 1 };
+  for (const g of GENERIC) if (u[g.id]) {
+    const fx = g.fx;
+    if (fx.src) d.global *= fx.src;
+    if (fx.click) d.click *= fx.click;
+    if (fx.clickFrac) d.clickFrac += fx.clickFrac;
+    if (fx.energy) d.eMult *= fx.energy;
+    if (fx.edd) d.kE *= fx.edd;
+    if (fx.ev) d.evMult *= fx.ev;
+  }
+  let types = 0;
+  for (let i = 0; i < SOURCES.length; i++) {
+    const n = s.src[i];
+    if (n > 0) types++;
+    let m = Math.pow(2, Math.floor(n / 25));
+    if (u['s' + i + 'a']) m *= 2;
+    if (u['s' + i + 'b']) m *= 3;
+    d.srcMult[i] = m;
+  }
+  d.types = types;
+  if (t.kern) d.global *= 1.5;
+  if (t.a1) d.global *= 2;
+  if (t.a4) d.global *= 1 + 0.15 * types;
+  if (t.a5) d.global *= 5;
+  d.deBonus = 1 + 0.1 * s.deTotal * (t.k5 ? 2 : 1);
+  d.global *= d.deBonus;
+  d.achCount = Object.keys(s.ach).length;
+  d.global *= Math.pow(1.02, d.achCount);
+  if (t.a3) d.cg = 1.13;
+  d.kE *= 1 + 0.1 * j.edd;
+  if (t.c1) d.kE *= 1.5;
+  if (t.c5) d.kE *= 1.5;
+  d.soft = BAL.soft + 0.03 * j.leak + (t.c3 ? 0.05 : 0);
+  d.spinLv = j.spin + (t.c2 ? 5 : 0);
+  d.spin = spinFromLevel(d.spinLv);
+  const ki = etaFromSpin(d.spin);
+  d.eta = ki.eta; d.isco = ki.isco;
+  d.jetMult = (1 + 4 * d.spin * d.spin) * (t.c5 ? 3 : 1);
+  d.click *= Math.pow(1.5, j.puls);
+  if (t.q1) d.click *= 3;
+  if (t.q2) d.hqMult *= 2;
+  if (t.q3) d.auto = 3;
+  if (t.q5) d.eMult *= 1 + 0.004 * s.hq;
+  if (t.k1) d.evFreq *= 1.4;
+  if (t.k2) { d.evMult *= 2; d.evDur *= 1.5; }
+  if (t.c4) d.speed = 1.25;
+  for (const b of s.buffs) {
+    if (b.supply) d.buffSupply *= b.supply;
+    if (b.cap) d.buffCap *= b.cap;
+    if (b.click) d.buffClick *= b.click;
+  }
+  return d;
+}
+
+function flows(s, d) {
+  const M = s.mass;
+  const unit = [];
+  let supply = 0;
+  for (let i = 0; i < SOURCES.length; i++) {
+    const q = SOURCES[i];
+    unit[i] = q.rate * Math.sqrt(q.U * M) * d.srcMult[i] * d.global * d.buffSupply;
+    supply += s.src[i] * unit[i];
+  }
+  const cap = d.kE * M * d.buffCap;
+  let acc = supply, over = 0;
+  // Weiches Limit: Über dem Eddington-Limit wächst die Akkretion nur noch mit (Zufluss/Limit)^soft, der Rest wird zu Jet-Plasma.
+  if (supply > cap) { acc = cap * Math.pow(supply / cap, d.soft); over = supply - acc; }
+  const evap = M < CMB_MASS ? BAL.ev0 * (MP / M) * (MP / M) : 0;
+  return { unit, supply, cap, acc, over, evap, net: acc - evap };
+}
+
+function step(s, dt) {
+  const d = calc(s);
+  dt *= d.speed;
+  const f = flows(s, d);
+  const gain = f.acc * dt;
+  let loss = f.evap * dt;
+  let m = s.mass + gain - loss;
+  if (m < MP) { loss = Math.max(0, s.mass + gain - MP); m = MP; if (gain < f.evap * dt) s.flags.brinkNow = true; }
+  s.mass = m;
+  if (loss > 0) { const q = loss / BAL.hqUnit * d.hqMult; s.hq += q; s.hqTotal += q; }
+  s.energy += gain * d.eta * C2 * d.eMult;
+  if (f.over > 0) { const p = f.over * dt * d.jetMult; s.plasma += p; s.stats.plasmaTotal += p; s.seenPlasma = true; }
+  if (s.mass > s.maxMass) s.maxMass = s.mass;
+  if (s.mass > s.stats.bestMass) s.stats.bestMass = s.mass;
+  s.runTime += dt; s.stats.playTime += dt;
+  if (s.buffs.length) s.buffs = s.buffs.filter(b => b.until > s.runTime);
+  if (d.auto) {
+    s.autoAcc += dt * d.auto;
+    if (s.autoAcc >= 1) { const n = Math.floor(s.autoAcc); s.autoAcc -= n; for (let k = 0; k < Math.min(n, 50); k++) puls(s, d, f, true); }
+  }
+  s.evNext -= dt;
+  return { d, f };
+}
+
+function puls(s, d = calc(s), f = flows(s, d), auto = false) {
+  const gain = (BAL.click * d.click + f.acc * d.clickFrac) * d.buffClick;
+  s.mass += gain;
+  s.energy += gain * d.eta * C2 * d.eMult;
+  if (!auto) { s.stats.clicks++; s.stats.clicksRun++; }
+  if (s.mass > s.maxMass) s.maxMass = s.mass;
+  if (s.mass > s.stats.bestMass) s.stats.bestMass = s.mass;
+  return gain;
+}
+
+function srcUnlocked(s, i) { return i === 0 || s.maxMass >= SOURCES[i].U; }
+function srcCost(s, i, d) { return SOURCES[i].cost * Math.pow(d.cg, s.src[i]); }
+function srcCostN(s, i, k, d) { const g = d.cg; return srcCost(s, i, d) * (Math.pow(g, k) - 1) / (g - 1); }
+function srcMaxAfford(s, i, d) {
+  const c = srcCost(s, i, d);
+  if (s.energy < c) return 0;
+  const g = d.cg;
+  return Math.max(1, Math.floor(Math.log(s.energy * (g - 1) / c + 1) / Math.log(g)));
+}
+function buySource(s, i, k, d = calc(s)) {
+  if (!srcUnlocked(s, i)) return 0;
+  k = Math.min(k, srcMaxAfford(s, i, d));
+  if (k <= 0) return 0;
+  const cost = srcCostN(s, i, k, d);
+  if (cost > s.energy * 1.0000001) return 0;
+  s.energy = Math.max(0, s.energy - cost);
+  s.src[i] += k;
+  return k;
+}
+// Bester Kauf nach Zufluss-Gewinn pro Energie
+function bestSource(s, d, f) {
+  let best = -1, score = 0;
+  for (let i = 0; i < SOURCES.length; i++) {
+    if (!srcUnlocked(s, i)) continue;
+    const c = srcCost(s, i, d);
+    if (c > s.energy) continue;
+    const n = s.src[i];
+    let gainMult = 1;
+    if ((n + 1) % 25 === 0) gainMult = 2;
+    const g = f.unit[i] * gainMult * (n + 1) - f.unit[i] * n;
+    const sc = g / c;
+    if (sc > score) { score = sc; best = i; }
+  }
+  return best;
+}
+function autoBuySources(s, maxN = 40) {
+  let bought = 0;
+  for (let k = 0; k < maxN; k++) {
+    const d = calc(s), f = flows(s, d);
+    const i = bestSource(s, d, f);
+    if (i < 0) break;
+    bought += buySource(s, i, 1, d);
+  }
+  return bought;
+}
+
+function upAvail(s, u) { return !s.up[u.id] && u.avail(s); }
+function buyUpgrade(s, u) {
+  if (!upAvail(s, u) || s.energy < u.cost) return false;
+  s.energy -= u.cost; s.up[u.id] = true; return true;
+}
+function jetCost(s, jt) {
+  let c = jt.base * Math.pow(jt.g, s.jet[jt.id]);
+  if (jt.id === 'spin' && s.tree.c2) c *= 0.5;
+  return c;
+}
+function jetMaxed(s, jt) { return jt.max && s.jet[jt.id] >= jt.max; }
+function buyJet(s, jt) {
+  if (jetMaxed(s, jt)) return false;
+  const c = jetCost(s, jt);
+  if (s.plasma < c) return false;
+  s.plasma -= c; s.jet[jt.id]++; return true;
+}
+function autoBuyRest(s) {
+  let n = 0;
+  for (let guard = 0; guard < 30; guard++) {
+    let cheapest = null;
+    for (const u of UPGRADES) if (upAvail(s, u) && s.energy >= u.cost && (!cheapest || u.cost < cheapest.cost)) cheapest = u;
+    if (!cheapest) break;
+    buyUpgrade(s, cheapest); n++;
+  }
+  for (let guard = 0; guard < 30; guard++) {
+    let cheapest = null, cc = Infinity;
+    for (const jt of JETS) { if (jetMaxed(s, jt)) continue; const c = jetCost(s, jt); if (c <= s.plasma && c < cc) { cc = c; cheapest = jt; } }
+    if (!cheapest) break;
+    buyJet(s, cheapest); n++;
+  }
+  return n;
+}
+
+function nodeAvail(s, n) { return !s.tree[n.id] && (n.req.length === 0 || n.req.some(r => s.tree[r])); }
+function nodeCur(n) { return n.cur || 'de'; }
+function buyNode(s, n) {
+  if (!nodeAvail(s, n)) return false;
+  const cur = nodeCur(n);
+  if (s[cur] < n.cost) return false;
+  s[cur] -= n.cost; s.tree[n.id] = true; return true;
+}
+
+function deGain(s) {
+  if (s.maxMass < URKNALL_MIN) return 0;
+  let g = BAL.de * Math.pow(s.maxMass / URKNALL_MIN, BAL.deExp);
+  if (s.tree.k4) g *= 2;
+  return Math.floor(g);
+}
+function urknall(s) {
+  const g = deGain(s);
+  if (g <= 0) return 0;
+  s.de += g; s.deTotal += g; s.stats.urknalls++;
+  freshRun(s);
+  return g;
+}
+
+function addBuff(s, b) {
+  const old = s.buffs.find(x => x.id === b.id);
+  if (old) Object.assign(old, b); else s.buffs.push(b);
+}
+function pickEvent(s, rnd = Math.random) {
+  const pool = EVENTS.filter(e => !e.need || e.need(s));
+  let tot = pool.reduce((a, e) => a + e.w, 0), r = rnd() * tot;
+  for (const e of pool) { r -= e.w; if (r <= 0) return e; }
+  return pool[0];
+}
+function nextEventDelay(s, d, rnd = Math.random) { return (55 + rnd() * 70) / d.evFreq; }
+// Wirkung eines eingefangenen Ereignisses. Gibt {title, text} zurück; Formatierung erfolgt mit den fmt-Funktionen.
+function applyEvent(s, id) {
+  const d = calc(s), f = flows(s, d);
+  const base = Math.max(f.acc, 0.5 * f.cap);
+  s.stats.events++;
+  switch (id) {
+    case 'tde': {
+      const g = 40 * base * d.evMult;
+      s.mass += g; s.energy += g * d.eta * C2 * d.eMult; s.stats.tde++;
+      if (s.mass > s.maxMass) s.maxMass = s.mass;
+      if (s.mass > s.stats.bestMass) s.stats.bestMass = s.mass;
+      return { title: 'Spaghettifiziert!', text: 'Der Stern ist zerrissen: +' + fmtMass(g) };
+    }
+    case 'filament': {
+      const dur = 25 * d.evDur;
+      addBuff(s, { id: 'filament', name: 'Gasfilament', until: s.runTime + dur, supply: 7 * Math.sqrt(d.evMult), cap: 2, good: true });
+      return { title: 'Gasfilament angezapft', text: 'Zufluss ×' + fmtNum(7 * Math.sqrt(d.evMult), 1) + ' und Eddington-Limit ×2 für ' + Math.round(dur) + ' s.' };
+    }
+    case 'quant': {
+      const q = (6 + 3 * s.stats.urknalls) * d.hqMult * d.evMult;
+      s.hq += q; s.hqTotal += q;
+      return { title: 'Quantenblase geplatzt', text: '+' + fmtCount(q) + ' Hawking-Quanten.' };
+    }
+    case 'welle': {
+      const e = 150 * base * d.eta * C2 * d.eMult * d.evMult;
+      s.energy += e;
+      return { title: 'Gravitationswelle', text: 'Die Raumzeit schwingt: +' + fmtEnergy(e) + '.' };
+    }
+    case 'schock': {
+      const e = 60 * base * d.eta * C2 * d.eMult * d.evMult;
+      s.energy += e; s.stats.schock++;
+      return { title: 'Schockwelle umgelenkt', text: 'Die Supernova-Front prallt ab: +' + fmtEnergy(e) + '.' };
+    }
+    case 'wurm': {
+      const dur = 15 * d.evDur;
+      addBuff(s, { id: 'wurm', name: 'Wurmloch-Puls', until: s.runTime + dur, click: 25, good: true });
+      return { title: 'Durch das Wurmloch', text: 'Gravitationspuls ×25 für ' + Math.round(dur) + ' s. Klick, klick, klick!' };
+    }
+    case 'string': {
+      const g = Math.max(1, Math.ceil(deGain(s) * 0.1));
+      s.de += g; s.deTotal += g;
+      return { title: 'Kosmischer String', text: 'Ein Riss aus der Frühzeit des Universums: +' + g + ' Dunkle Energie.' };
+    }
+  }
+  return { title: '', text: '' };
+}
+function missEvent(s, id) {
+  if (id !== 'schock') return null;
+  addBuff(s, { id: 'schock', name: 'Schockwelle', until: s.runTime + 30, supply: 0.5, bad: true });
+  return { title: 'Schockwelle getroffen', text: 'Das Gas um dich wird weggeblasen: Zufluss −50 % für 30 s.' };
+}
+
+const ACH = [
+  ...LADDER.slice(1).map((r, i) => ({ id: 'l' + (i + 1), name: r.name, desc: 'Erreiche ' + fmtMass(r.m) + '.', check: s => s.stats.bestMass >= r.m })),
+  { id: 'first', name: 'Erster Bissen', desc: 'Kaufe deine erste Quelle.', check: s => s.src.some(n => n > 0) && s.flags.boughtOnce },
+  { id: 'stable', name: 'Überlebt', desc: 'Fange mehr ein, als du verdampfst.', check: s => s.flags.stable },
+  { id: 'brink', name: 'Am Abgrund', desc: 'Schrumpfe zurück bis auf die Planck-Masse.', check: s => s.flags.brink },
+  { id: 'c100', name: 'Taktgeber', desc: '100 Gravitationspulse.', check: s => s.stats.clicks >= 100 },
+  { id: 'c1000', name: 'Pulsar', desc: '1.000 Gravitationspulse.', check: s => s.stats.clicks >= 1000 },
+  { id: 'c5000', name: 'Millisekundenpulsar', desc: '5.000 Gravitationspulse.', check: s => s.stats.clicks >= 5000 },
+  { id: 'ev1', name: 'Besuch', desc: 'Fange dein erstes Ereignis.', check: s => s.stats.events >= 1 },
+  { id: 'ev25', name: 'Ereignisjäger', desc: 'Fange 25 Ereignisse.', check: s => s.stats.events >= 25 },
+  { id: 'ev100', name: 'Seismograf', desc: 'Fange 100 Ereignisse.', check: s => s.stats.events >= 100 },
+  { id: 'tde1', name: 'Spaghetti', desc: 'Zerreiße einen Stern.', check: s => s.stats.tde >= 1 },
+  { id: 'schock1', name: 'Schutzschild', desc: 'Wehre eine Supernova-Schockwelle ab.', check: s => s.stats.schock >= 1 },
+  { id: 'jet', name: 'Überfüttert', desc: 'Überschreite das Eddington-Limit.', check: s => s.seenPlasma },
+  { id: 'spin9', name: 'Kreisel', desc: 'Erreiche Spin a ≥ 0,9.', check: s => spinFromLevel(s.jet.spin + (s.tree.c2 ? 5 : 0)) >= 0.9 },
+  { id: 'spin99', name: 'Thorne-Grenze', desc: 'Erreiche Spin a ≥ 0,99.', check: s => spinFromLevel(s.jet.spin + (s.tree.c2 ? 5 : 0)) >= 0.99 },
+  { id: 'n100', name: 'Sammler', desc: 'Besitze 100 Stück einer Quelle.', check: s => s.src.some(n => n >= 100) },
+  { id: 'all', name: 'Allesfresser', desc: 'Besitze jede Quellenart mindestens einmal.', check: s => s.src.every(n => n > 0) },
+  { id: 'u1', name: 'Neues Universum', desc: 'Löse deinen ersten Urknall aus.', check: s => s.stats.urknalls >= 1 },
+  { id: 'u5', name: 'Kosmische Selektion', desc: 'Löse 5 Urknalle aus.', check: s => s.stats.urknalls >= 5 },
+  { id: 'u20', name: 'Smolins Garten', desc: 'Löse 20 Urknalle aus.', check: s => s.stats.urknalls >= 20 },
+  { id: 'hq100', name: 'Glühen', desc: 'Sammle insgesamt 100 Hawking-Quanten.', check: s => s.hqTotal >= 100 },
+  { id: 'hq1000', name: 'Weißglut', desc: 'Sammle insgesamt 1.000 Hawking-Quanten.', check: s => s.hqTotal >= 1000 },
+  { id: 'tree10', name: 'Raumzeit-Gärtner', desc: 'Schalte 10 Knoten im Raumzeit-Baum frei.', check: s => Object.keys(s.tree).length >= 10 },
+  { id: 'treeall', name: 'Vollendete Metrik', desc: 'Schalte den ganzen Raumzeit-Baum frei.', check: s => Object.keys(s.tree).length >= TREE.length },
+];
+function checkAch(s) {
+  const got = [];
+  for (const a of ACH) if (!s.ach[a.id] && a.check(s)) { s.ach[a.id] = true; got.push(a); }
+  return got;
+}
+
+// ==/ENGINE==
+
+/* ---------- Oberfläche ---------- */
+const $ = (q, el = document) => el.querySelector(q);
+const KEY = 'ereignishorizont-v1';
+let S, D, F;
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const TICKER = [
+  [0, 'Hawking-Strahlung nagt an dir. Fang Materie ein, bevor du dich in Licht auflöst.'],
+  [0, 'Ein virtuelles Teilchenpaar entsteht direkt an deinem Horizont. Eines fällt hinein.'],
+  [0, 'Mit 10⁻³⁵ Metern bist du kleiner als alles, was ein Teilchenbeschleuniger je auflösen wird.'],
+  [1, 'Ein Staubkorn treibt heran. Aus deiner Sicht ist es ein Kontinent.'],
+  [1, 'Kosmischer Staub: Silikate, Kohlenstoff, ein Hauch Eis.'],
+  [2, 'Interstellares Gas: etwa ein Atom pro Kubikzentimeter. Geduld.'],
+  [3, 'Du wiegst ein Kilogramm und strahlst heißer als jeder Stern.'],
+  [3, 'Schwarze Löcher haben keine Haare: Masse, Spin, Ladung. Mehr verraten sie nicht.'],
+  [4, 'Wenn du rotierst, ziehst du die Raumzeit mit. Das nennt man Frame-Dragging.'],
+  [5, 'Ein Blauwal wiegt 150 Tonnen. Du bist schwerer und kleiner als ein Atomkern.'],
+  [6, 'Akkretion ist der effizienteste Energieprozess, den wir kennen: bis zu 42 % von mc².'],
+  [8, 'Urzeitliche schwarze Löcher deiner Größe verdampfen gerade irgendwo im All.'],
+  [9, 'Wer zu nah kommt, wird gestreckt und gestaucht. Fachbegriff: Spaghettifizierung.'],
+  [10, 'Du könntest jetzt ein neues Universum zünden. Oder weiterfressen.'],
+  [11, 'Ab jetzt ist die Verdampfung kaum noch der Rede wert.'],
+  [12, 'Die Hintergrundstrahlung ist jetzt wärmer als du. Du schluckst mehr Licht, als du abstrahlst.'],
+  [14, 'Die ganze Erde auf Murmelgröße.'],
+  [16, 'Ein Stern müsste mehr als 20 Sonnenmassen haben, um so zu enden wie du jetzt.'],
+  [17, 'Zwei verschmelzende Löcher deiner Größe würde LIGO als kurzes Zirpen hören.'],
+  [19, 'Sterne umkreisen dich mit Tausenden Kilometern pro Sekunde.'],
+  [20, 'Dein Jet reicht Tausende Lichtjahre weit ins All.'],
+  [21, 'TON 618: ein Horizont von 1.300 AE. Das Sonnensystem passt vierzigmal hinein.'],
+];
+
+function ladderIndex(m) { let k = 0; for (let i = 0; i < LADDER.length; i++) if (m >= LADDER[i].m) k = i; return k; }
+
+/* Speichern */
+function migrate(o) {
+  const base = newState();
+  for (const k in base) if (o[k] === undefined) o[k] = base[k];
+  for (const k of ['stats', 'settings', 'jet', 'flags']) o[k] = Object.assign({}, base[k], o[k] || {});
+  if (!Array.isArray(o.src)) o.src = base.src;
+  while (o.src.length < SOURCES.length) o.src.push(0);
+  for (const k of ['mass', 'maxMass', 'energy', 'plasma', 'hq', 'de', 'deTotal']) if (!isFinite(o[k])) o[k] = base[k];
+  if (o.mass < MP) o.mass = MP;
+  return o;
+}
+function loadSave() { try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {} return null; }
+function save() { try { S.lastTick = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
+
+/* Meldungen */
+function toast(title, text, color) {
+  const box = $('#toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  if (color) el.style.setProperty('--c', color);
+  el.innerHTML = '<b></b><span></span>';
+  el.querySelector('b').textContent = title;
+  el.querySelector('span').textContent = text || '';
+  box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), 4800);
+}
+function modal(title, html, actions) {
+  const card = $('#modal-card');
+  card.innerHTML = '<h2 id="modal-title"></h2>' + html + '<div class="btns"></div>';
+  card.querySelector('h2').textContent = title;
+  const row = card.querySelector('.btns');
+  for (const a of actions) {
+    const b = document.createElement('button');
+    b.className = 'btn ' + (a.cls || '');
+    b.textContent = a.label;
+    b.addEventListener('click', () => { closeModal(); a.fn && a.fn(); });
+    row.appendChild(b);
+  }
+  $('#modal').hidden = false;
+  setTimeout(() => row.lastChild && row.lastChild.focus(), 30);
+}
+function closeModal() { $('#modal').hidden = true; }
+
+/* Reiter */
+let activeTab = 'quellen';
+function showTab(name) {
+  activeTab = name;
+  for (const b of document.querySelectorAll('#tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  for (const p of document.querySelectorAll('.tab')) p.hidden = p.id !== 'tab-' + name;
+  dirty.all = true;
+}
+
+/* Quellen */
+const srcRows = [];
+function buildSources() {
+  const list = $('#src-list');
+  list.innerHTML = '';
+  SOURCES.forEach((q, i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<div class="row-main"><div class="row-head"><b></b><span class="n"></span></div><div class="row-flavor"></div><div class="row-meta"></div><div class="share"><i></i></div></div><button class="buy"><em></em><span></span></button>`;
+    row.querySelector('b').textContent = q.name;
+    row.querySelector('.row-flavor').textContent = q.flavor;
+    const btn = row.querySelector('.buy');
+    btn.querySelector('em').style.fontStyle = 'normal';
+    btn.addEventListener('click', () => {
+      const d = calc(S);
+      const amt = S.settings.buyAmt === 'max' ? 1e6 : +S.settings.buyAmt;
+      const k = buySource(S, i, amt, d);
+      if (k > 0) { S.flags.boughtOnce = true; dirty.all = true; renderAll(); }
+    });
+    list.appendChild(row);
+    srcRows.push({ row, n: row.querySelector('.n'), meta: row.querySelector('.row-meta'), share: row.querySelector('.share i'), btn, lbl: btn.querySelector('em'), cost: btn.querySelector('span'), flavor: row.querySelector('.row-flavor'), name: row.querySelector('b') });
+  });
+}
+function renderSources() {
+  const d = D, f = F;
+  let firstLocked = true;
+  SOURCES.forEach((q, i) => {
+    const r = srcRows[i];
+    const un = srcUnlocked(S, i);
+    if (!un) {
+      r.row.hidden = !firstLocked;
+      firstLocked = false;
+      r.row.classList.add('locked');
+      r.name.textContent = q.name;
+      r.n.textContent = '';
+      r.meta.textContent = 'Wird frei ab ' + fmtMass(q.U) + ' Masse.';
+      r.share.style.width = '0';
+      r.btn.hidden = true;
+      return;
+    }
+    r.row.hidden = false; r.row.classList.remove('locked'); r.btn.hidden = false;
+    const n = S.src[i];
+    r.n.textContent = n ? '×' + fmtInt(n) : '';
+    const tot = n * f.unit[i];
+    const shr = f.supply > 0 ? tot / f.supply : 0;
+    const nextMs = (Math.floor(n / 25) + 1) * 25;
+    r.meta.innerHTML = '';
+    r.meta.append('+' + fmtMass(f.unit[i]) + '/s je Stück');
+    if (n) { const sp = document.createElement('span'); sp.className = 'hi'; sp.textContent = ' · ' + fmtNum(shr * 100, shr < 0.1 ? 1 : 0) + ' %'; r.meta.append(sp); }
+    r.meta.append(' · ×2 bei ' + nextMs);
+    r.share.style.width = (shr * 100).toFixed(1) + '%';
+    let amt = S.settings.buyAmt === 'max' ? Math.max(1, srcMaxAfford(S, i, d)) : +S.settings.buyAmt;
+    const cost = srcCostN(S, i, amt, d);
+    r.lbl.textContent = 'Kaufen ×' + fmtInt(amt);
+    r.cost.textContent = fmtEnergy(cost);
+    r.btn.disabled = cost > S.energy * 1.0000001;
+  });
+}
+
+/* Upgrades */
+let upKey = '';
+function renderUpgrades() {
+  const avail = UPGRADES.filter(u => upAvail(S, u)).sort((a, b) => a.cost - b.cost);
+  const owned = UPGRADES.filter(u => S.up[u.id]);
+  const key = avail.map(u => u.id).join(',') + '|' + owned.length;
+  const list = $('#up-list');
+  if (key !== upKey) {
+    upKey = key;
+    list.innerHTML = '';
+    if (!avail.length) {
+      const next = UPGRADES.filter(u => !S.up[u.id] && u.reqMass && u.reqMass > S.maxMass).sort((a, b) => a.reqMass - b.reqMass)[0];
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = next ? 'Gerade nichts im Angebot. Nächstes Upgrade ab ' + fmtMass(next.reqMass) + ' Masse, Quellen-Upgrades ab 10 und 40 Stück.' : 'Alles gekauft.';
+      list.appendChild(e);
+    }
+    for (const u of avail) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = '<div class="row-main"><div class="row-head"><b></b></div><div class="row-flavor"></div></div><button class="buy"><em style="font-style:normal">Kaufen</em><span></span></button>';
+      row.querySelector('b').textContent = u.name;
+      row.querySelector('.row-flavor').textContent = u.desc;
+      row.querySelector('span').textContent = fmtEnergy(u.cost);
+      const b = row.querySelector('.buy');
+      b.dataset.cost = u.cost;
+      b.addEventListener('click', () => { if (buyUpgrade(S, u)) { toast(u.name, u.desc); renderAll(); } });
+      list.appendChild(row);
+    }
+    const ow = $('#up-owned');
+    ow.innerHTML = '';
+    for (const u of owned) { const sp = document.createElement('span'); sp.textContent = u.name; sp.title = u.desc; ow.appendChild(sp); }
+    $('#up-owned-h').hidden = !owned.length;
+  }
+  for (const b of list.querySelectorAll('.buy')) b.disabled = +b.dataset.cost > S.energy;
+}
+
+/* Jets */
+const jetRows = [];
+function buildJets() {
+  const list = $('#jet-list');
+  for (const jt of JETS) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<div class="row-main"><div class="row-head"><b></b><span class="n"></span></div><div class="row-flavor"></div></div><button class="buy plasma"><em style="font-style:normal">Stufe +1</em><span></span></button>';
+    row.querySelector('b').textContent = jt.name;
+    row.querySelector('.row-flavor').textContent = jt.desc;
+    const b = row.querySelector('.buy');
+    b.addEventListener('click', () => { if (buyJet(S, jt)) renderAll(); });
+    list.appendChild(row);
+    jetRows.push({ jt, n: row.querySelector('.n'), b, cost: b.querySelector('span') });
+  }
+}
+function renderJets() {
+  for (const r of jetRows) {
+    const lv = S.jet[r.jt.id];
+    r.n.textContent = 'Stufe ' + lv + (r.jt.max ? ' / ' + r.jt.max : '');
+    if (jetMaxed(S, r.jt)) { r.cost.textContent = 'Maximum'; r.b.disabled = true; continue; }
+    const c = jetCost(S, r.jt);
+    r.cost.textContent = fmtMass(c);
+    r.b.disabled = c > S.plasma;
+  }
+  $('#j-a').textContent = fmtNum(D.spin, 3);
+  $('#j-eta').textContent = fmtNum(D.eta * 100, 2) + ' %';
+  $('#j-isco').innerHTML = fmtNum(D.isco, 2) + ' r<sub>g</sub>';
+  $('#j-mult').textContent = '×' + fmtNum(D.jetMult, 2);
+}
+let spinAngle = 0;
+function drawSpin(dt) {
+  const c = $('#spin-cv'), x = c.getContext('2d');
+  const w = c.width, h = c.height, r = w * 0.18;
+  spinAngle += dt * (0.4 + D.spin * 6) * (reduceMotion ? 0.2 : 1);
+  x.clearRect(0, 0, w, h);
+  const g = x.createRadialGradient(w / 2, h / 2, r, w / 2, h / 2, w / 2);
+  g.addColorStop(0, 'rgba(255,173,90,.55)'); g.addColorStop(1, 'rgba(255,173,90,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(w / 2, h / 2, w / 2, 0, 7); x.fill();
+  const isco = r * (D.isco / 6) * 1.9;
+  x.strokeStyle = 'rgba(121,208,255,.7)'; x.setLineDash([4, 5]); x.lineWidth = 1.5;
+  x.beginPath(); x.arc(w / 2, h / 2, Math.max(r * 1.15, isco), 0, 7); x.stroke(); x.setLineDash([]);
+  x.fillStyle = '#000'; x.beginPath(); x.arc(w / 2, h / 2, r, 0, 7); x.fill();
+  x.strokeStyle = '#fff1d8'; x.lineWidth = 2;
+  for (let k = 0; k < 3; k++) { const a = spinAngle + k * 2.094; x.beginPath(); x.arc(w / 2, h / 2, r * 1.5, a, a + 0.9); x.stroke(); }
+}
+
+/* Raumzeit-Baum */
+let selNode = 'kern', treeKey = '';
+const SVGNS = 'http://www.w3.org/2000/svg';
+function nodeColor(n) { return nodeCur(n) === 'hq' ? 'var(--quant)' : 'var(--dark)'; }
+function buildTree() {
+  const svg = $('#tree-svg');
+  svg.innerHTML = '';
+  const labels = [['AKKRETION', 67, 4], ['RELATIVITÄT', 96, 34], ['QUANTEN', 4, 34], ['KOSMOS', 67, 100]];
+  for (const [t, x, y] of labels) { const el = document.createElementNS(SVGNS, 'text'); el.setAttribute('x', x); el.setAttribute('y', y); el.setAttribute('class', 'branch-lbl'); el.setAttribute('text-anchor', 'middle'); el.textContent = t; svg.appendChild(el); }
+  for (const n of TREE) for (const r of n.req) {
+    const p = TREE_BY_ID[r];
+    const l = document.createElementNS(SVGNS, 'line');
+    l.setAttribute('x1', p.x); l.setAttribute('y1', p.y); l.setAttribute('x2', n.x); l.setAttribute('y2', n.y);
+    l.setAttribute('class', 'edge'); l.dataset.a = r; l.dataset.b = n.id;
+    svg.appendChild(l);
+  }
+  for (const n of TREE) {
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', 'tnode'); g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', n.name); g.dataset.id = n.id;
+    g.style.setProperty('--c', nodeColor(n));
+    g.innerHTML = `<circle cx="${n.x}" cy="${n.y}" r="4.3"></circle><text class="glyph" x="${n.x}" y="${n.y + 0.2}"></text><text x="${n.x}" y="${n.y + (n.top ? -6 : 8)}"></text>`;
+    g.querySelector('.glyph').textContent = n.g;
+    g.querySelectorAll('text')[1].textContent = n.short;
+    const pick = () => { selNode = n.id; treeKey = ''; renderTree(); };
+    g.addEventListener('click', pick);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    svg.appendChild(g);
+  }
+}
+function renderTree() {
+  const key = Object.keys(S.tree).join(',') + '|' + selNode + '|' + Math.floor(S.de) + '|' + Math.floor(S.hq);
+  if (key === treeKey) return;
+  treeKey = key;
+  for (const g of document.querySelectorAll('.tnode')) {
+    const n = TREE_BY_ID[g.dataset.id];
+    const own = !!S.tree[n.id], av = nodeAvail(S, n);
+    g.classList.toggle('own', own);
+    g.classList.toggle('avail', av);
+    g.classList.toggle('afford', av && S[nodeCur(n)] >= n.cost);
+    g.classList.toggle('sel', n.id === selNode);
+  }
+  for (const l of document.querySelectorAll('#tree-svg .edge')) l.classList.toggle('on', !!(S.tree[l.dataset.a] && S.tree[l.dataset.b]));
+  const n = TREE_BY_ID[selNode];
+  const box = $('#node-detail');
+  const cur = nodeCur(n), curName = cur === 'hq' ? 'Hawking-Quanten' : 'Dunkle Energie';
+  box.innerHTML = '<div><h3></h3><p></p></div>';
+  box.querySelector('h3').textContent = n.name;
+  box.querySelector('p').textContent = n.desc;
+  if (S.tree[n.id]) {
+    const s = document.createElement('span'); s.className = 'row-meta'; s.textContent = 'Freigeschaltet'; box.appendChild(s);
+  } else {
+    const b = document.createElement('button');
+    b.className = 'buy ' + (cur === 'hq' ? 'hq' : 'de');
+    b.innerHTML = '<em style="font-style:normal">Freischalten</em><span></span>';
+    b.querySelector('span').textContent = fmtInt(n.cost) + ' ' + (cur === 'hq' ? 'HQ' : 'DE');
+    b.title = curName;
+    const av = nodeAvail(S, n);
+    b.disabled = !av || S[cur] < n.cost;
+    if (!av) b.querySelector('em').textContent = 'Erst Nachbar';
+    b.addEventListener('click', () => { if (buyNode(S, n)) { toast(n.name, n.desc, cur === 'hq' ? '#c4a0ff' : '#ff6aa8'); treeKey = ''; renderAll(); } });
+    box.appendChild(b);
+  }
+}
+
+/* Leiter & Erfolge */
+let ladderKey = -1;
+function renderLadder() {
+  const k = ladderIndex(S.stats.bestMass);
+  if (k === ladderKey) return;
+  ladderKey = k;
+  const ol = $('#ladder');
+  ol.innerHTML = '';
+  LADDER.forEach((r, i) => {
+    const li = document.createElement('li');
+    li.className = 'rung ' + (i <= k ? 'done' : i === k + 1 ? 'next future' : 'future') + (i === LADDER.length - 1 ? ' goal' : '');
+    li.innerHTML = '<div class="pin"></div><div><h3></h3><p></p></div>';
+    const h = li.querySelector('h3');
+    h.textContent = r.name;
+    const sp = document.createElement('span');
+    sp.textContent = fmtMass(r.m) + ' · Horizont ' + fmtLength(schwarzschild(r.m));
+    h.appendChild(sp);
+    li.querySelector('p').textContent = i <= k + 1 || i === LADDER.length - 1 ? r.text : 'Noch unbekanntes Terrain.';
+    ol.appendChild(li);
+  });
+}
+let achKey = '';
+function renderAch() {
+  const key = Object.keys(S.ach).length;
+  if (key === achKey) return;
+  achKey = key;
+  const grid = $('#ach-grid');
+  grid.innerHTML = '';
+  for (const a of ACH) {
+    const el = document.createElement('div');
+    el.className = 'ach' + (S.ach[a.id] ? ' got' : '');
+    el.innerHTML = '<b></b><small></small>';
+    el.querySelector('b').textContent = a.name;
+    el.querySelector('small').textContent = a.desc;
+    grid.appendChild(el);
+  }
+  $('#ach-sum').textContent = key + ' / ' + ACH.length + ' · Zufluss ×' + fmtNum(Math.pow(1.02, key), 2);
+}
+function renderStats() {
+  const rows = [
+    ['Spielzeit', fmtTime(S.stats.playTime)],
+    ['Dieses Universum', fmtTime(S.runTime)],
+    ['Rekordmasse', fmtMass(S.stats.bestMass)],
+    ['Urknalle', fmtInt(S.stats.urknalls)],
+    ['Dunkle Energie gesamt', fmtInt(S.deTotal)],
+    ['Hawking-Quanten gesamt', fmtCount(S.hqTotal)],
+    ['Gravitationspulse', fmtInt(S.stats.clicks)],
+    ['Ereignisse gefangen', fmtInt(S.stats.events)],
+    ['Plasma ausgestoßen', fmtMass(S.stats.plasmaTotal)],
+    ['Bonus Dunkle Energie', '×' + fmtCount(D.deBonus)],
+  ];
+  const dl = $('#stats');
+  dl.innerHTML = '';
+  for (const [k, v] of rows) { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); }
+}
+
+/* Kopf und HUD */
+const dirty = { all: true };
+let lastEnergy = 0, energyRate = 0, lastPlasma = 0, plasmaRate = 0, lastHq = 0, hqRate = 0;
+function renderWallet() {
+  $('#w-energy').textContent = fmtEnergy(S.energy);
+  $('#w-energy-r').textContent = '+' + fmtEnergy(F.acc * D.eta * C2 * D.eMult * D.speed) + '/s';
+  const pl = S.seenPlasma;
+  $('#coin-plasma').hidden = !pl;
+  if (pl) { $('#w-plasma').textContent = fmtMass(S.plasma); $('#w-plasma-r').textContent = F.over > 0 ? '+' + fmtMass(F.over * D.jetMult * D.speed) + '/s' : 'kein Überschuss'; }
+  const showQ = S.hqTotal >= 1;
+  $('#coin-quant').hidden = !showQ;
+  if (showQ) { $('#w-quant').textContent = fmtCount(Math.floor(S.hq)); $('#w-quant-r').textContent = hqRate > 0.005 ? '+' + fmtCount(hqRate) + '/s' : 'nur wenn du verdampfst'; }
+  const showD = S.deTotal > 0;
+  $('#coin-dark').hidden = !showD;
+  if (showD) { $('#w-dark').textContent = fmtInt(S.de); $('#w-dark-r').textContent = 'Bonus ×' + fmtCount(D.deBonus); }
+  const g = deGain(S);
+  const ub = $('#btn-urknall');
+  ub.hidden = g <= 0;
+  if (g > 0) $('#urk-gain').textContent = '+' + fmtInt(g) + ' Dunkle Energie';
+}
+let tickerIdx = -1, tickerT = 0;
+function renderHud() {
+  $('#h-mass').textContent = fmtMass(S.mass);
+  const k = ladderIndex(S.mass);
+  const nx = LADDER[k + 1];
+  const el = $('#h-next');
+  el.innerHTML = '';
+  if (nx) { el.append('Nächste Stufe: '); const b = document.createElement('b'); b.textContent = nx.name; el.append(b, ' · ' + fmtMass(nx.m)); }
+  else el.textContent = 'Du bist eines der schwersten schwarzen Löcher des Universums.';
+  $('#h-radius').textContent = fmtLength(schwarzschild(S.mass));
+  $('#h-temp').textContent = fmtTemp(hawkingT(S.mass));
+  $('#h-spin-wrap').hidden = D.spin <= 0;
+  $('#h-spin').textContent = fmtNum(D.spin, 3);
+  $('#h-supply').textContent = '+' + fmtMass(F.acc * D.speed) + '/s';
+  const ew = $('#h-evap-wrap');
+  ew.hidden = F.evap <= 0 || F.evap < F.acc * 1e-4;
+  $('#h-evap').textContent = '−' + fmtMass(F.evap * D.speed) + '/s';
+  ew.classList.toggle('warn', F.evap > F.acc);
+  const ratio = F.cap > 0 ? F.supply / F.cap : 0;
+  $('#m-edd').classList.toggle('over', ratio > 1);
+  $('#m-edd-v').textContent = ratio > 1 ? fmtNum(ratio * 100, 0) + ' % · Jets aktiv' : fmtNum(ratio * 100, 0) + ' %';
+  $('#m-edd-bar').style.width = (Math.min(1, ratio / 3) * 100).toFixed(1) + '%';
+  const p = progressTo(S.mass);
+  $('#m-prog-v').textContent = fmtNum(p * 100, 1) + ' %';
+  $('#m-prog-bar').style.width = (p * 100).toFixed(2) + '%';
+  $('#hint-start').hidden = S.stats.clicks >= 5 || S.stats.urknalls > 0;
+  const bf = $('#buffs');
+  const bkey = S.buffs.map(b => b.id + Math.ceil(b.until - S.runTime)).join();
+  if (bf.dataset.k !== bkey) {
+    bf.dataset.k = bkey;
+    bf.innerHTML = '';
+    for (const b of S.buffs) { const s = document.createElement('span'); s.className = 'buff ' + (b.bad ? 'bad' : 'good'); s.textContent = b.name + ' · ' + Math.ceil((b.until - S.runTime) / D.speed) + ' s'; bf.appendChild(s); }
+  }
+}
+function renderTicker(force) {
+  const k = ladderIndex(S.mass);
+  const pool = TICKER.filter(t => t[0] <= k && t[0] >= k - 3);
+  if (!pool.length) return;
+  tickerIdx = (tickerIdx + 1) % pool.length;
+  const el = $('#ticker');
+  el.style.opacity = 0;
+  setTimeout(() => { el.textContent = pool[tickerIdx % pool.length][1]; el.style.opacity = 1; }, force ? 0 : 400);
+}
+function renderTabsVisibility() {
+  const show = { jets: S.seenPlasma, baum: S.stats.urknalls > 0 || S.maxMass >= URKNALL_MIN || S.deTotal > 0 };
+  for (const b of document.querySelectorAll('#tabs button')) {
+    if (b.dataset.tab in show) b.hidden = !show[b.dataset.tab];
+  }
+  const upBtn = document.querySelector('#tabs [data-tab="upgrades"]');
+  const anyAfford = UPGRADES.some(u => upAvail(S, u) && S.energy >= u.cost);
+  if (!!upBtn.querySelector('.dot') !== anyAfford) upBtn.innerHTML = 'Upgrades' + (anyAfford ? '<span class="dot" aria-label="kaufbar"></span>' : '');
+  $('#autobuy-wrap').hidden = !S.tree.k3;
+  $('#autoup-wrap').hidden = !S.tree.k5;
+}
+function renderAll() {
+  D = calc(S); F = flows(S, D);
+  renderWallet(); renderHud(); renderTabsVisibility();
+  if (activeTab === 'quellen') renderSources();
+  if (activeTab === 'upgrades') renderUpgrades();
+  if (activeTab === 'jets') renderJets();
+  if (activeTab === 'baum') renderTree();
+  if (activeTab === 'leiter') renderLadder();
+  if (activeTab === 'erfolge') renderAch();
+  if (activeTab === 'optionen' && (dirty.all || Math.random() < 0.1)) renderStats();
+  dirty.all = false;
+}
+
+/* Puls, Ereignisse, Fortschritt */
+let pointer = null;
+function doPuls(x, y) {
+  const d = calc(S), f = flows(S, d);
+  const g = puls(S, d, f);
+  bump = 1;
+  rings.push({ t: 0 });
+  burst(10);
+  if (x == null) { const r = $('#stage').getBoundingClientRect(); x = r.width / 2; y = r.height * 0.54; }
+  const fl = document.createElement('div');
+  fl.className = 'floater';
+  fl.textContent = '+' + fmtMass(g);
+  fl.style.left = (x - 20) + 'px'; fl.style.top = (y - 24) + 'px';
+  const box = $('#floaters');
+  box.appendChild(fl);
+  while (box.children.length > 14) box.firstChild.remove();
+  setTimeout(() => fl.remove(), 950);
+}
+
+const activeEv = [];
+function spawnEvent() {
+  const e = pickEvent(S);
+  const st = $('#stage').getBoundingClientRect();
+  const el = document.createElement('button');
+  el.className = 'ev';
+  el.style.setProperty('--c', e.c);
+  el.innerHTML = '<div class="orb"></div><div class="lbl"></div>';
+  el.querySelector('.lbl').innerHTML = '<span></span> ';
+  el.querySelector('.lbl span').textContent = e.hint + ':';
+  el.querySelector('.lbl').append(e.name);
+  el.setAttribute('aria-label', e.name + ' – ' + e.hint);
+  const fromLeft = Math.random() < 0.5;
+  const ev = { e, el, x: fromLeft ? -40 : st.width + 40, y: st.height * (0.25 + Math.random() * 0.45), vx: (fromLeft ? 1 : -1) * (st.width + 120) / (13 * D.evDur), vy: (Math.random() - 0.5) * 12, life: 13 * D.evDur, done: false };
+  el.addEventListener('click', ev2 => {
+    ev2.stopPropagation();
+    if (ev.done) return;
+    ev.done = true; el.remove();
+    const res = applyEvent(S, e.id);
+    toast(res.title, res.text, e.c);
+    burst(30);
+    renderAll();
+  });
+  $('#events').appendChild(el);
+  activeEv.push(ev);
+}
+function updateEvents(dt) {
+  for (let i = activeEv.length - 1; i >= 0; i--) {
+    const ev = activeEv[i];
+    ev.life -= dt; ev.x += ev.vx * dt; ev.y += ev.vy * dt;
+    ev.el.style.transform = `translate(${ev.x - 60}px, ${ev.y - 20}px)`;
+    if (ev.done) { activeEv.splice(i, 1); continue; }
+    if (ev.life <= 0) {
+      ev.el.remove(); activeEv.splice(i, 1);
+      const res = missEvent(S, ev.e.id);
+      if (res) toast(res.title, res.text, '#ff6b57');
+    }
+  }
+}
+
+function checkProgress() {
+  const got = checkAch(S);
+  for (const a of got) {
+    if (a.id.startsWith('l')) {
+      const r = LADDER[+a.id.slice(1)];
+      toast('Neue Stufe: ' + r.name, r.text, '#fff1d8');
+    } else toast('Erfolg: ' + a.name, a.desc + ' Zufluss +2 %.', '#ffad5a');
+  }
+  if (got.length) { ladderKey = -1; achKey = ''; }
+  // neue Quellen
+  const unlocked = SOURCES.filter((q, i) => srcUnlocked(S, i)).length;
+  if (S.flags.srcSeen === undefined) S.flags.srcSeen = unlocked;
+  if (unlocked > S.flags.srcSeen) { const q = SOURCES[unlocked - 1]; toast('Neue Quelle: ' + q.name, q.flavor, '#ffad5a'); S.flags.srcSeen = unlocked; }
+  if (!S.flags.stable && S.src[0] > 0 && F.acc > F.evap) S.flags.stable = true;
+  if (S.flags.brinkNow && S.stats.clicks > 3) S.flags.brink = true;
+  S.flags.brinkNow = false;
+  if (S.seenPlasma && !S.flags.plasmaToast) { S.flags.plasmaToast = true; toast('Eddington-Limit überschritten', 'Der Überschuss schießt als Jet-Plasma davon. Neuer Reiter: Jets.', '#79d0ff'); }
+  if (S.maxMass >= URKNALL_MIN && !S.flags.urkToast) { S.flags.urkToast = true; toast('Urknall möglich', 'Oben rechts kannst du dein Loch zu einem Baby-Universum kollabieren lassen.', '#ff6aa8'); }
+  if (S.mass >= MTON && !S.won) { S.won = true; S.stats.wonAt = S.stats.playTime; victory(); }
+}
+
+function askUrknall() {
+  const g = deGain(S);
+  if (g <= 0) return;
+  modal('Urknall auslösen?', `<p>Dein Loch kollabiert zu einem Baby-Universum, so wie es Lee Smolins Hypothese der kosmischen Selektion beschreibt. Du startest dort als Planck-Loch, mit neu abgestimmten Naturkonstanten.</p>
+    <p class="big">+${fmtInt(g)} Dunkle Energie</p>
+    <ul><li>Zurückgesetzt: Masse, Energie, Quellen, Upgrades, Jet-Plasma, Spin.</li><li>Bleibt: Dunkle Energie, Hawking-Quanten, Raumzeit-Baum, Erfolge.</li><li>Jede jemals gewonnene Dunkle Energie: +10 % Zufluss.</li></ul>`,
+    [{ label: 'Noch nicht', cls: '' }, { label: 'Urknall!', cls: 'dark', fn: () => {
+      const got = urknall(S);
+      bigBang = 1;
+      upKey = ''; treeKey = ''; ladderKey = -1;
+      for (const ev of activeEv) ev.el.remove();
+      activeEv.length = 0;
+      toast('Ein neues Universum', '+' + got + ' Dunkle Energie. Der Raumzeit-Baum wartet.', '#ff6aa8');
+      showTab('baum');
+      save(); renderAll();
+    } }]);
+}
+function victory() {
+  modal('Du bist TON 618', `<p>Von 21,8 Mikrogramm zu <b>66 Milliarden Sonnenmassen</b>: 49 Größenordnungen. Dein Horizont misst jetzt ${fmtLength(schwarzschild(S.mass))}.</p>
+    <p>Gespielt: <b>${fmtTime(S.stats.playTime)}</b> · Urknalle: <b>${S.stats.urknalls}</b> · Pulse: <b>${fmtInt(S.stats.clicks)}</b></p>
+    <p>Du kannst weiterspielen. Es gibt Gerüchte über noch schwerere Monster.</p>`, [{ label: 'Weiter fressen', cls: 'primary' }]);
+}
+
+/* Offline */
+function offline() {
+  const now = Date.now();
+  const secs = Math.min((now - (S.lastTick || now)) / 1000, (S.tree.q4 ? 12 : 8) * 3600);
+  if (!(secs > 30)) return;
+  const eff = S.tree.q4 ? 1 : 0.5;
+  const m0 = S.mass, e0 = S.energy, p0 = S.plasma;
+  const steps = Math.min(4000, Math.ceil(secs));
+  const h = secs * eff / steps;
+  const buffs = S.buffs; S.buffs = [];
+  for (let i = 0; i < steps; i++) {
+    step(S, h);
+    if (S.tree.k3 && S.settings.autoBuy && i % 10 === 0) autoBuySources(S, 20);
+    if (S.tree.k5 && S.settings.autoUp && i % 10 === 0) autoBuyRest(S);
+  }
+  S.buffs = buffs.filter(b => b.until > S.runTime);
+  S.evNext = Math.min(S.evNext, 30);
+  const em = Math.max(0, S.mass - m0);
+  modal('Willkommen zurück', `<p>Du warst <b>${fmtTime(secs)}</b> weg. Ohne dich lief die Akkretion mit ${eff === 1 ? 'voller' : 'halber'} Kraft weiter.</p>
+    <ul><li>Masse: +${fmtMass(em)}</li><li>Energie gesammelt (vor Käufen): ${fmtEnergy(Math.max(0, S.energy - e0))}</li>${S.plasma > p0 ? '<li>Jet-Plasma: +' + fmtMass(S.plasma - p0) + '</li>' : ''}</ul>`, [{ label: 'Weiter', cls: 'primary' }]);
+}
+
+/* ---------- Bühne ---------- */
+const cv = $('#space'), cx = cv.getContext('2d');
+let W = 1, H = 1, DPR = 1, holeR = 14, bump = 0, bigBang = 0;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = Math.max(1, r.width); H = Math.max(1, r.height);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+const stars = Array.from({ length: 200 }, () => ({ x: Math.random(), y: Math.random(), z: Math.random(), p: Math.random() * 6.28 }));
+const galaxies = Array.from({ length: 16 }, () => ({ x: Math.random(), y: Math.random(), r: rand(6, 18), rot: rand(0, 3.14), t: rand(0.25, 0.6), h: rand(190, 330) }));
+const disk = Array.from({ length: 280 }, () => ({ a: rand(0, 6.283), r: 1.4 + Math.pow(Math.random(), 1.7) * 2.6, w: rand(0.5, 1.8) }));
+const infall = [], sparks = [], rings = [];
+function burst(n) { for (let i = 0; i < n; i++) infall.push({ a: rand(0, 6.283), r: rand(3.5, 7), v: rand(1.2, 2.4) }); }
+function diskColor(r, b) {
+  const t = clamp((r - 1.4) / 2.6, 0, 1);
+  const R = 255, G = Math.round(245 - t * 140), B = Math.round(225 - t * 190);
+  return `rgba(${R},${G},${B},${b})`;
+}
+let lastFrame = 0;
+function frame(ts) {
+  const t = ts / 1000;
+  const dt = Math.min(0.05, t - lastFrame || 0.016);
+  lastFrame = t;
+  if (!S || !D) { requestAnimationFrame(frame); return; }
+  const low = S.settings.lowFx;
+  const mot = reduceMotion ? 0.3 : 1;
+  const p = progressTo(S.mass);
+  const ccx = W * 0.5, ccy = H * 0.52;
+  const target = Math.min(W, H) * (0.035 + 0.14 * p);
+  holeR += (target - holeR) * Math.min(1, dt * 2);
+  const R = holeR * (1 + bump * 0.07);
+  bump *= Math.pow(0.02, dt);
+  const ratio = F.cap > 0 ? F.supply / F.cap : 0;
+  const feed = clamp(F.acc / Math.max(1e-300, F.cap), 0, 1);
+
+  cx.globalCompositeOperation = 'source-over';
+  cx.fillStyle = '#07060e';
+  cx.fillRect(0, 0, W, H);
+  // Ära-Nebel: violett (Quanten) → bernstein (Staub) → blau (Sterne) → magenta (Galaxien)
+  const hue = p < 0.33 ? 270 - p * 3 * 240 : p < 0.66 ? 30 + (p - 0.33) * 3 * 180 : 210 + (p - 0.66) * 3 * 110;
+  const neb = cx.createRadialGradient(ccx, ccy, R, ccx, ccy, Math.max(W, H) * 0.75);
+  neb.addColorStop(0, `hsla(${hue},70%,40%,0.16)`);
+  neb.addColorStop(0.5, `hsla(${hue + 30},60%,25%,0.07)`);
+  neb.addColorStop(1, 'hsla(0,0%,0%,0)');
+  cx.fillStyle = neb; cx.fillRect(0, 0, W, H);
+  // Sterne
+  const nStars = Math.round((low ? 70 : 110) + 90 * p);
+  for (let i = 0; i < nStars && i < stars.length; i++) {
+    const s = stars[i];
+    const a = (0.35 + 0.5 * s.z) * (0.75 + 0.25 * Math.sin(t * (1 + s.z * 2) * mot + s.p));
+    cx.fillStyle = `rgba(230,225,255,${a})`;
+    const sz = 0.5 + s.z * 1.2;
+    cx.fillRect(s.x * W, s.y * H, sz, sz);
+  }
+  // Quantenschaum früh
+  if (p < 0.2 && !reduceMotion) {
+    const k = (1 - p / 0.2);
+    for (let i = 0; i < (low ? 10 : 26) * k; i++) {
+      cx.fillStyle = `rgba(196,160,255,${Math.random() * 0.35 * k})`;
+      const ang = Math.random() * 6.283, dist = R * rand(1.3, 6);
+      cx.beginPath(); cx.arc(ccx + Math.cos(ang) * dist, ccy + Math.sin(ang) * dist, rand(0.5, 2.2), 0, 6.283); cx.fill();
+    }
+  }
+  // Galaxien spät
+  if (p > 0.55) {
+    const k = clamp((p - 0.55) / 0.3, 0, 1);
+    for (const g of galaxies) {
+      cx.save(); cx.translate(g.x * W, g.y * H); cx.rotate(g.rot); cx.scale(1, g.t);
+      const gg = cx.createRadialGradient(0, 0, 0, 0, 0, g.r);
+      gg.addColorStop(0, `hsla(${g.h},80%,85%,${0.55 * k})`); gg.addColorStop(1, `hsla(${g.h},70%,50%,0)`);
+      cx.fillStyle = gg; cx.beginPath(); cx.arc(0, 0, g.r, 0, 6.283); cx.fill(); cx.restore();
+    }
+  }
+  // Urknall-Blitz
+  if (bigBang > 0) {
+    const bb = cx.createRadialGradient(ccx, ccy, 0, ccx, ccy, Math.max(W, H) * (1.2 - bigBang));
+    bb.addColorStop(0, `rgba(255,240,250,${bigBang})`); bb.addColorStop(1, 'rgba(255,106,168,0)');
+    cx.fillStyle = bb; cx.fillRect(0, 0, W, H);
+    bigBang = Math.max(0, bigBang - dt * 0.6);
+  }
+
+  cx.globalCompositeOperation = 'lighter';
+  // Glühen um das Loch
+  const glowA = 0.12 + 0.35 * feed;
+  const gl = cx.createRadialGradient(ccx, ccy, R * 0.9, ccx, ccy, R * 4.2);
+  gl.addColorStop(0, `rgba(255,173,90,${glowA})`); gl.addColorStop(1, 'rgba(255,120,60,0)');
+  cx.fillStyle = gl; cx.fillRect(ccx - R * 4.5, ccy - R * 4.5, R * 9, R * 9);
+
+  // Jets
+  if (ratio > 1) {
+    const inten = clamp(Math.log10(ratio) / 1.2 + 0.25, 0.2, 1) * (0.85 + 0.15 * Math.sin(t * 23));
+    for (const dir of [-1, 1]) {
+      const len = H * (0.25 + 0.35 * inten);
+      const jg = cx.createLinearGradient(ccx, ccy, ccx, ccy + dir * len);
+      jg.addColorStop(0, `rgba(190,235,255,${0.75 * inten})`); jg.addColorStop(0.4, `rgba(121,208,255,${0.4 * inten})`); jg.addColorStop(1, 'rgba(121,208,255,0)');
+      cx.fillStyle = jg;
+      cx.beginPath();
+      cx.moveTo(ccx - R * 0.12, ccy); cx.lineTo(ccx - R * 0.55, ccy + dir * len); cx.lineTo(ccx + R * 0.55, ccy + dir * len); cx.lineTo(ccx + R * 0.12, ccy);
+      cx.closePath(); cx.fill();
+    }
+  }
+
+  // Scheibe: Teilchen auf geneigten Kepler-Bahnen
+  const tilt = 0.24, nDisk = low ? 120 : disk.length;
+  const dA = 0.3 + 0.7 * feed;
+  const back = [], front = [];
+  for (let i = 0; i < nDisk; i++) {
+    const q = disk[i];
+    q.a += dt * mot * 1.7 / Math.pow(q.r, 1.5);
+    (Math.sin(q.a) < 0 ? back : front).push(q);
+  }
+  const drawP = q => {
+    const x = ccx + Math.cos(q.a) * q.r * R, y = ccy + Math.sin(q.a) * q.r * R * tilt;
+    const dop = 1 + 0.65 * -Math.cos(q.a);
+    cx.fillStyle = diskColor(q.r, clamp(0.22 * dA * dop * q.w, 0, 1));
+    const sz = (0.8 + q.w) * (R > 40 ? 1.4 : 1);
+    cx.fillRect(x - sz / 2, y - sz / 2, sz * 2.2, sz);
+  };
+  back.forEach(drawP);
+  // gelinste Rückseite der Scheibe über und unter dem Schatten
+  cx.lineWidth = Math.max(1.2, R * 0.2);
+  cx.strokeStyle = `rgba(255,190,120,${0.32 * dA})`;
+  cx.beginPath(); cx.ellipse(ccx, ccy, R * 1.5, R * 1.32, 0, Math.PI * 1.02, Math.PI * 1.98); cx.stroke();
+  cx.lineWidth = Math.max(0.8, R * 0.08);
+  cx.strokeStyle = `rgba(255,190,120,${0.16 * dA})`;
+  cx.beginPath(); cx.ellipse(ccx, ccy, R * 1.25, R * 1.12, 0, Math.PI * 0.08, Math.PI * 0.92); cx.stroke();
+
+  cx.globalCompositeOperation = 'source-over';
+  cx.fillStyle = '#000';
+  cx.beginPath(); cx.arc(ccx, ccy, R, 0, 6.283); cx.fill();
+  cx.globalCompositeOperation = 'lighter';
+  cx.strokeStyle = `rgba(255,241,216,${0.55 + 0.35 * feed})`;
+  cx.lineWidth = Math.max(1, R * 0.035);
+  cx.beginPath(); cx.arc(ccx, ccy, R * 1.04, 0, 6.283); cx.stroke();
+  front.forEach(drawP);
+
+  // Einfallende Materie
+  const want = clamp(Math.log10(1 + 40 * F.acc / Math.max(1e-300, S.mass * 0.04)) * 3, 0.2, 6) * (low ? 0.5 : 1);
+  if (Math.random() < want * dt * 8) infall.push({ a: rand(0, 6.283), r: rand(5, 9), v: rand(0.8, 1.6) });
+  for (let i = infall.length - 1; i >= 0; i--) {
+    const q = infall[i];
+    q.r -= dt * q.v * (1 + 3 / q.r) * mot;
+    q.a += dt * mot * 2.4 / Math.pow(Math.max(1, q.r), 1.5);
+    if (q.r < 1.05) { infall.splice(i, 1); continue; }
+    const x = ccx + Math.cos(q.a) * q.r * R, y = ccy + Math.sin(q.a) * q.r * R * (0.35 + 0.65 * Math.min(1, q.r / 6));
+    const a = clamp((9 - q.r) / 6, 0.1, 1);
+    cx.fillStyle = `rgba(255,225,180,${0.7 * a})`;
+    cx.fillRect(x, y, 1.6, 1.6);
+  }
+  if (infall.length > 400) infall.splice(0, infall.length - 400);
+  // Hawking-Strahlung
+  const hawk = S.mass < CMB_MASS ? clamp(F.evap / Math.max(1e-300, F.acc + F.evap), 0, 1) : 0;
+  if (hawk > 0.02 && Math.random() < hawk * dt * 40 * (low ? 0.5 : 1)) { const a = rand(0, 6.283); sparks.push({ x: ccx + Math.cos(a) * R, y: ccy + Math.sin(a) * R, vx: Math.cos(a) * rand(30, 70), vy: Math.sin(a) * rand(30, 70), l: 1 }); }
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const q = sparks[i];
+    q.x += q.vx * dt; q.y += q.vy * dt; q.l -= dt * 1.4;
+    if (q.l <= 0) { sparks.splice(i, 1); continue; }
+    cx.fillStyle = `rgba(196,160,255,${q.l})`;
+    cx.fillRect(q.x, q.y, 2, 2);
+  }
+  // Pulsringe
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const q = rings[i];
+    q.t += dt * 1.8;
+    if (q.t >= 1) { rings.splice(i, 1); continue; }
+    cx.strokeStyle = `rgba(255,241,216,${0.5 * (1 - q.t)})`;
+    cx.lineWidth = 1.5;
+    cx.beginPath(); cx.arc(ccx, ccy, R * (1.1 + q.t * 3.2), 0, 6.283); cx.stroke();
+  }
+  if (rings.length > 12) rings.splice(0, rings.length - 12);
+  cx.globalCompositeOperation = 'source-over';
+
+  updateEvents(dt);
+  if (activeTab === 'jets') drawSpin(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Start ---------- */
+let lastLogic = 0, saveT = 0, achT = 0, tickerClock = 0, autoT = 0;
+function logic() {
+  const now = performance.now();
+  let dt = (now - lastLogic) / 1000;
+  lastLogic = now;
+  if (!(dt > 0)) return;
+  dt = Math.min(dt, 3600) * S.settings.speed;
+  const steps = Math.min(2000, Math.max(1, Math.ceil(dt / 0.25)));
+  const h = dt / steps;
+  for (let i = 0; i < steps; i++) step(S, h);
+  autoT += dt;
+  if (autoT >= 0.5) {
+    autoT = 0;
+    if (S.tree.k3 && S.settings.autoBuy && autoBuySources(S, 40)) S.flags.boughtOnce = true;
+    if (S.tree.k5 && S.settings.autoUp) autoBuyRest(S);
+  }
+  const d = calc(S);
+  if (S.evNext <= 0) {
+    S.evNext = nextEventDelay(S, d);
+    if (S.maxMass >= 1e-6 && !document.hidden && activeEv.length < 2) spawnEvent();
+  }
+  hqRate = hqRate * 0.8 + 0.2 * Math.max(0, (S.hq - lastHq) / (dt || 1)) * 1; lastHq = S.hq;
+  achT += dt / S.settings.speed;
+  if (achT > 0.5) { achT = 0; checkProgress(); }
+  tickerClock += dt / S.settings.speed;
+  if (tickerClock > 11) { tickerClock = 0; renderTicker(); }
+  saveT += dt / S.settings.speed;
+  if (saveT > 15) { saveT = 0; save(); }
+  renderAll();
+}
+
+function wire() {
+  const hit = $('#hit');
+  hit.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const r = $('#stage').getBoundingClientRect();
+    doPuls(e.clientX - r.left, e.clientY - r.top);
+  });
+  hit.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); doPuls(); } });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); doPuls(); }
+    if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
+  });
+  for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => { showTab(b.dataset.tab); renderAll(); });
+  for (const b of document.querySelectorAll('#buy-amt button')) b.addEventListener('click', () => {
+    S.settings.buyAmt = b.dataset.amt;
+    for (const x of document.querySelectorAll('#buy-amt button')) x.setAttribute('aria-pressed', String(x === b));
+    renderAll();
+  });
+  for (const b of document.querySelectorAll('#speed-seg button')) b.addEventListener('click', () => {
+    S.settings.speed = +b.dataset.speed;
+    for (const x of document.querySelectorAll('#speed-seg button')) x.setAttribute('aria-pressed', String(x === b));
+  });
+  $('#btn-urknall').addEventListener('click', askUrknall);
+  $('#autobuy').addEventListener('change', e => { S.settings.autoBuy = e.target.checked; });
+  $('#autoup').addEventListener('change', e => { S.settings.autoUp = e.target.checked; });
+  $('#lowfx').addEventListener('change', e => { S.settings.lowFx = e.target.checked; });
+  $('#btn-save').addEventListener('click', () => { $('#save-msg').textContent = save() ? 'Gespeichert.' : 'Speichern ist in diesem Browser blockiert. Nutze den Text oben als Sicherung.'; });
+  $('#btn-export').addEventListener('click', () => {
+    S.lastTick = Date.now();
+    const txt = btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+    const ta = $('#save-text');
+    ta.value = txt;
+    const done = () => { $('#save-msg').textContent = 'In die Zwischenablage kopiert.'; };
+    const fail = () => { ta.focus(); ta.select(); $('#save-msg').textContent = 'Text markiert. Kopiere ihn mit Strg+C bzw. ⌘+C.'; };
+    try { navigator.clipboard.writeText(txt).then(done, fail); } catch (e) { fail(); }
+  });
+  $('#btn-import').addEventListener('click', () => {
+    try {
+      const o = JSON.parse(decodeURIComponent(escape(atob($('#save-text').value.trim()))));
+      if (!o || typeof o !== 'object' || !('mass' in o)) throw new Error('kein Spielstand');
+      S = migrate(o);
+      upKey = ''; treeKey = ''; ladderKey = -1; achKey = '';
+      syncSettingsUi(); save(); renderAll();
+      $('#save-msg').textContent = 'Spielstand geladen.';
+    } catch (e) { $('#save-msg').textContent = 'Das ist kein gültiger Spielstand. Füge den kompletten Text aus „Spielstand anzeigen“ ein.'; }
+  });
+  $('#btn-reset').addEventListener('click', () => {
+    modal('Wirklich alles löschen?', '<p>Masse, Raumzeit-Baum, Dunkle Energie und Erfolge sind danach weg. Das lässt sich nicht rückgängig machen.</p>', [
+      { label: 'Abbrechen' },
+      { label: 'Alles löschen', cls: 'danger', fn: () => { S = newState(); upKey = ''; treeKey = ''; ladderKey = -1; achKey = ''; syncSettingsUi(); save(); showTab('quellen'); renderAll(); intro(); } },
+    ]);
+  });
+  $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  window.addEventListener('pagehide', save);
+  new ResizeObserver(resize).observe(cv);
+}
+function syncSettingsUi() {
+  for (const x of document.querySelectorAll('#buy-amt button')) x.setAttribute('aria-pressed', String(x.dataset.amt === String(S.settings.buyAmt)));
+  for (const x of document.querySelectorAll('#speed-seg button')) x.setAttribute('aria-pressed', String(+x.dataset.speed === S.settings.speed));
+  $('#autobuy').checked = S.settings.autoBuy;
+  $('#autoup').checked = S.settings.autoUp;
+  $('#lowfx').checked = S.settings.lowFx;
+}
+function intro() {
+  modal('Du bist ein Planck-Loch', `<p>21,8 Mikrogramm, 10⁻³⁵ Meter: das kleinste schwarze Loch, das die Physik zulässt. Und du verdampfst. Hawking-Strahlung frisst an dir, je kleiner du bist, desto schneller.</p>
+    <ul><li><b>Klicke auf das Loch</b>, um mit einem Gravitationspuls Materie einzufangen.</li><li>Kaufe <b>Quellen</b> mit der Energie, die beim Einfangen frei wird.</li><li>Fang vorbeiziehende <b>Ereignisse</b> ab und behalte das <b>Eddington-Limit</b> im Blick.</li></ul>
+    <p>Dein Ziel: <b>TON 618</b>, 66 Milliarden Sonnenmassen.</p>`, [{ label: 'Fressen', cls: 'primary' }]);
+}
+function boot(data) {
+  const fresh = !(data && data.state) && !loadSave();
+  S = (data && data.state) ? migrate(data.state) : (loadSave() || newState());
+  wire(); buildSources(); buildJets(); buildTree(); resize(); syncSettingsUi();
+  D = calc(S); F = flows(S, D);
+  if (!(data && data.state)) offline();
+  lastLogic = performance.now();
+  renderAll(); renderTicker(true);
+  setInterval(logic, 100);
+  requestAnimationFrame(frame);
+  if (fresh) intro();
+}
+window.claude?.hot?.snapshot?.(() => ({ state: S }));
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
