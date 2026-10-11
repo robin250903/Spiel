@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#140e09">
+<title>Myzel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700;800&family=Alegreya+Sans+SC:wght@500;700&display=swap">
+<style>
+/* Layout: Karte (Waldboden von oben) füllt den Platz, Steuerpult rechts; schmal: Pult unten als Blatt.
+   Ein einziger Look: nachtdunkle Erde, das Myzel leuchtet. Deshalb kein Hell/Dunkel-Wechsel. */
+:root {
+  --soil: #140e09;
+  --panel: #1d150e;
+  --panel-2: #271c13;
+  --line: #3b2c1f;
+  --ink: #f1e6d0;
+  --muted: #a9967b;
+  --myc: #f4ead6;
+  --n: #e0a65a;      /* Nährstoffe */
+  --w: #6cc3ea;      /* Wasser */
+  --z: #f08fb4;      /* Zucker */
+  --m: #b8a3ff;      /* Mineralien */
+  --s: #9fe6b4;      /* Sporen / Erbgut */
+  --bad: #ff7d6b;
+  --display: "Alegreya", Georgia, "Times New Roman", serif;
+  --body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --label: "Alegreya Sans SC", "Alegreya Sans", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--soil); color: var(--ink); font-family: var(--body); font-size: 15px; overflow: hidden; }
+[hidden] { display: none !important; }
+#app { display: grid; height: 100%; grid-template-columns: 1fr 360px; grid-template-rows: 100%; }
+#stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#cv.drag { cursor: grabbing; }
+#hud {
+  position: absolute; left: 0; right: 0; top: 0; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(20,14,9,.92), rgba(20,14,9,.55) 70%, rgba(20,14,9,0));
+}
+.chip {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px;
+  background: rgba(39,28,19,.85); border: 1px solid var(--line); font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap; pointer-events: auto;
+}
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; align-self: center; flex: none; }
+.chip b { font-weight: 800; font-size: 15px; }
+.chip small { color: var(--muted); font-size: 12px; }
+.chip.season { gap: 8px; }
+.season .bar { width: 46px; height: 4px; border-radius: 2px; background: var(--line); align-self: center; overflow: hidden; }
+.season .bar i { display: block; height: 100%; background: var(--myc); }
+#hud .sp { flex: 1; }
+.iconbtn {
+  pointer-events: auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+  background: rgba(39,28,19,.85); color: var(--ink); font-size: 15px; cursor: pointer; display: grid; place-items: center; padding: 0;
+}
+#toasts { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: min(360px, calc(100% - 24px)); }
+.toast {
+  background: rgba(39,28,19,.95); border: 1px solid var(--line); border-left: 3px solid var(--s); padding: 8px 12px; border-radius: 6px;
+  font-size: 14px; animation: tin .3s ease-out; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+.toast b { font-family: var(--display); font-weight: 700; }
+@keyframes tin { from { opacity: 0; transform: translateY(8px); } }
+#panel { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+#tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; padding-top: env(safe-area-inset-top, 0px); }
+#tabs button {
+  flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 13px 4px 11px;
+  font: 700 14px var(--label); letter-spacing: .04em; cursor: pointer; position: relative;
+}
+#tabs button.on { color: var(--ink); border-bottom-color: var(--myc); }
+#tabs button .badge { position: absolute; top: 8px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--s); }
+#body { overflow-y: auto; padding: 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
+h2 { font-family: var(--display); font-weight: 800; font-size: 24px; margin: 0; line-height: 1.1; text-wrap: balance; }
+h3 { font: 700 13px var(--label); letter-spacing: .08em; color: var(--muted); margin: 0; text-transform: lowercase; }
+p { margin: 0; line-height: 1.45; }
+.muted { color: var(--muted); }
+.tag { display: inline-block; font: 700 12px var(--label); letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.own { color: var(--myc); border-color: rgba(244,234,214,.4); }
+.tag.reach { color: var(--s); border-color: rgba(159,230,180,.4); }
+.head { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.rows { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-variant-numeric: lining-nums tabular-nums; }
+.rows span:nth-child(odd) { color: var(--muted); }
+.rows span:nth-child(even) { text-align: right; font-weight: 700; }
+.act { display: flex; flex-direction: column; gap: 8px; }
+.btn {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 10px 12px;
+  font: 700 15px var(--body); cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: rgba(244,234,214,.45); }
+.btn:disabled { cursor: default; opacity: .55; }
+.btn.primary { background: rgba(244,234,214,.1); border-color: rgba(244,234,214,.45); }
+.btn.warn { border-color: rgba(255,125,107,.5); color: var(--bad); }
+button:focus-visible { outline: 2px solid var(--myc); outline-offset: 2px; }
+.cost { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; font-variant-numeric: lining-nums tabular-nums; font-weight: 700; }
+.cost span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cost span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .9; }
+.cost .no { color: var(--bad) !important; }
+.c-N { color: var(--n); } .c-W { color: var(--w); } .c-Z { color: var(--z); } .c-M { color: var(--m); } .c-S { color: var(--s); }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: rgba(39,28,19,.45); }
+.card.done { opacity: .6; }
+.card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.card .top b { font-family: var(--display); font-size: 17px; font-weight: 700; }
+.card .lvl { font: 700 13px var(--label); color: var(--muted); font-variant-numeric: lining-nums tabular-nums; }
+.prog { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--myc); }
+.list { display: flex; flex-direction: column; gap: 10px; }
+.goal { border-left: 3px solid var(--s); padding: 8px 12px; background: rgba(159,230,180,.06); border-radius: 0 8px 8px 0; }
+.goal h3 { color: var(--s); margin-bottom: 3px; }
+.switch { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.switch button { min-width: 64px; }
+#modal { position: fixed; inset: 0; background: rgba(10,7,4,.72); display: grid; place-items: center; padding: 16px; z-index: 10; }
+#modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; max-width: 380px; width: 100%; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+#modal .gains { display: flex; flex-direction: column; gap: 6px; font-variant-numeric: lining-nums tabular-nums; font-weight: 700; font-size: 17px; }
+@media (max-width: 820px) {
+  #app { grid-template-columns: 100%; grid-template-rows: minmax(0, 1fr) auto; }
+  #panel { border-left: 0; border-top: 1px solid var(--line); max-height: 44vh; max-height: 44dvh; }
+  #panel.min #body { display: none; }
+  #tabs { padding-top: 0; }
+  .chip { padding: 4px 8px 4px 7px; }
+  .chip b { font-size: 14px; }
+  .chip small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hud"></div>
+    <div id="toasts"></div>
+  </div>
+  <div id="panel">
+    <div id="tabs" role="tablist"></div>
+    <div id="body"></div>
+  </div>
+</div>
+<div id="modal" hidden><div class="box" id="modalBox"></div></div>
+
+<script>
+'use strict';
+// ============================================================================
+// Myzel: Ein Pilzgeflecht unter dem Waldboden. Wachse Feld für Feld, zersetze Laub und Holz,
+// tausche mit Bäumen Wasser gegen Zucker, entwickle dich weiter und starte per Sporenflug neu.
+// Der Fortschritt läuft weiter, während das Spiel geschlossen ist.
+// ============================================================================
+
+const N = 45, C = 22, CELL = 34, SEASON_LEN = 100;
+const SAVE_KEY = 'myzel.save.v1';
+const T = { ERDE: 0, STEIN: 1, LAUB: 2, HOLZ: 3, WASSER: 4, BAUM: 5, MINERAL: 6, KNOCHEN: 7 };
+const TYPES = [
+  { name: 'Erde', desc: 'Lockerer Waldboden. Auf eigenen Erdfeldern kannst du Knoten und Pilze wachsen lassen.' },
+  { name: 'Stein', desc: 'Fels. Nur mit Säure frisst sich dein Myzel hindurch.' },
+  { name: 'Laub', desc: 'Herabgefallene Blätter. Dein Myzel zersetzt sie zu Nährstoffen, bis nichts mehr übrig ist.', res: 'N', rate: 1, finite: true, amt: 60 },
+  { name: 'Totholz', desc: 'Ein morscher Ast. Gibt viele Nährstoffe und hält lange.', res: 'N', rate: 2.5, finite: true, amt: 450 },
+  { name: 'Wasserader', desc: 'Feuchte Erde. Liefert ohne Ende Wasser.', res: 'W', rate: 1.2 },
+  { name: 'Baumwurzel', desc: 'Ein Baum. Er gibt dir Zucker und braucht dafür Wasser aus deinem Netz. Stärken kannst du ihn mit Nährstoffen, Wasser und später Mineralien.', res: 'Z' },
+  { name: 'Mineralader', desc: 'Gelöste Mineralien sickern durch den Stein. Langsam, aber ohne Ende.', res: 'M', rate: 0.15 },
+  { name: 'Knochen', desc: 'Die Reste eines Tieres. Viele Mineralien, bis sie aufgebraucht sind.', res: 'M', rate: 0.45, finite: true, amt: 160 },
+];
+const RES = {
+  N: { name: 'Nährstoffe', short: 'Nährstoffe' },
+  W: { name: 'Wasser', short: 'Wasser' },
+  Z: { name: 'Zucker', short: 'Zucker' },
+  M: { name: 'Mineralien', short: 'Mineralien' },
+  S: { name: 'Sporen', short: 'Sporen' },
+};
+const RES_COL = { N: '#e0a65a', W: '#6cc3ea', Z: '#f08fb4', M: '#b8a3ff', S: '#9fe6b4' };
+const SEASONS = [
+  { name: 'Frühling', note: 'Hyphen wachsen doppelt so schnell.', tint: 'rgba(120,200,120,0.05)' },
+  { name: 'Sommer', note: 'Bäume geben 50 % mehr Zucker, aber es gibt 30 % weniger Wasser.', tint: 'rgba(255,200,90,0.05)' },
+  { name: 'Herbst', note: 'Frisches Laub fällt. Zersetzung +20 %.', tint: 'rgba(230,120,40,0.07)' },
+  { name: 'Winter', note: 'Schneeschmelze: +40 % Wasser. Zersetzung −40 %.', tint: 'rgba(140,180,255,0.07)' },
+];
+const BLD = {
+  1: { name: 'Zersetzerknoten', desc: 'Laub, Totholz und Knochen bis zu 2 Felder weit werden 50 % schneller zersetzt.' },
+  2: { name: 'Fruchtkörper', desc: 'Ein Pilz wächst aus dem Boden und bildet Sporen.' },
+};
+
+// ---- Hilfen ----------------------------------------------------------------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash(n) {
+  n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4);
+  n = Math.imul(n, 0x27d4eb2d); n = n ^ (n >>> 15);
+  return (n >>> 0) / 4294967296;
+}
+function makeNoise(rng, scale) {
+  const g = Math.ceil(N / scale) + 2, v = [];
+  for (let i = 0; i < g * g; i++) v.push(rng());
+  return (x, y) => {
+    const fx = x / scale, fy = y / scale, ix = Math.floor(fx), iy = Math.floor(fy);
+    let tx = fx - ix, ty = fy - iy;
+    tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+    const a = v[iy * g + ix], b = v[iy * g + ix + 1], c = v[(iy + 1) * g + ix], d = v[(iy + 1) * g + ix + 1];
+    return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+  };
+}
+function fmt(n) {
+  if (!isFinite(n)) return '∞';
+  const neg = n < 0; n = Math.abs(n);
+  let s;
+  if (n < 10) s = (Math.floor(n * 10) / 10).toFixed(1);
+  else if (n < 1000) s = String(Math.floor(n));
+  else {
+    const u = ['k', 'M', 'Mrd', 'Bio']; let i = -1;
+    while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+    s = (n < 100 ? (Math.floor(n * 10) / 10).toFixed(1) : String(Math.floor(n))) + ' ' + u[i];
+  }
+  return (neg ? '−' : '') + s.replace('.', ',');
+}
+function fmtTime(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + ' s';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + ' min';
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h + ' h' + (mm ? ' ' + mm + ' min' : '');
+}
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+const neighbors4 = i => {
+  const x = i % N, y = (i / N) | 0, out = [];
+  if (x > 0) out.push(i - 1); if (x < N - 1) out.push(i + 1);
+  if (y > 0) out.push(i - N); if (y < N - 1) out.push(i + N);
+  return out;
+};
+
+// ---- Spielstand ------------------------------------------------------------
+let S = null;
+
+const UPS = [
+  { id: 'enzyme', name: 'Enzyme', max: 10, desc: () => 'Laub, Totholz und Knochen zersetzen sich 50 % schneller.',
+    cost: l => ({ N: 25 * Math.pow(2.3, l) }), vis: () => true },
+  { id: 'hyphen', name: 'Feine Hyphen', max: 8, desc: () => 'Wachsen kostet 15 % weniger Nährstoffe.',
+    cost: l => ({ N: 35 * Math.pow(2.4, l) }), vis: () => true },
+  { id: 'tempo', name: 'Schnelles Wachstum', max: 5, desc: () => 'Hyphen wachsen 30 % schneller, und ein Faden mehr kann gleichzeitig wachsen.',
+    cost: l => ({ N: 40 * Math.pow(2.6, l) }), vis: () => S.ever.N >= 40 },
+  { id: 'kapillar', name: 'Kapillaren', max: 8, desc: () => 'Wasseradern liefern 50 % mehr Wasser.',
+    cost: l => ({ Z: 20 * Math.pow(2.2, l) }), vis: () => S.ever.Z > 0 },
+  { id: 'symbiose', name: 'Symbiose', max: 10, desc: () => 'Bäume geben 40 % mehr Zucker.',
+    cost: l => ({ Z: 30 * Math.pow(2.3, l), M: l >= 2 ? 6 * Math.pow(2, l - 2) : 0 }), vis: () => S.ever.Z > 0 },
+  { id: 'sinne', name: 'Chemische Sinne', max: 3, desc: () => 'Du spürst ein Feld weiter in die Erde.',
+    cost: l => ({ Z: 60 * Math.pow(3.5, l) }), vis: () => S.ever.Z > 0 },
+  { id: 'saeure', name: 'Säure', max: 2, desc: l => l === 0 ? 'Dein Myzel frisst sich durch Stein. Kostet 5× so viel wie normales Wachsen.' : 'Stein kostet nur noch 2,5× so viel.',
+    cost: l => l === 0 ? { Z: 300 } : { Z: 2500, M: 150 }, vis: () => S.ever.Z > 0 },
+  { id: 'gestein', name: 'Gesteinslösung', max: 8, desc: () => 'Mineralien fließen 30 % schneller.',
+    cost: l => ({ Z: 50 * Math.pow(2.4, l) }), vis: () => S.ever.M > 0 },
+  { id: 'spitzen', name: 'Wachstumsspitzen', max: 6, desc: l => `Dein Myzel wächst von selbst zum nächsten Fundort, alle ${autoInt(l + 1)} s.`,
+    cost: l => ({ Z: 400 * Math.pow(3, l), M: l ? 40 * Math.pow(3, l - 1) : 0 }), vis: () => S.ever.Z >= 100 },
+  { id: 'ruhe', name: 'Winterruhe', max: 5, desc: () => 'Du sammelst 2 Stunden länger, während das Spiel zu ist.',
+    cost: l => ({ Z: 100 * Math.pow(2.5, l) }), vis: () => S.ever.Z > 0 },
+  { id: 'frucht', name: 'Fruchtkörper', max: 1, desc: () => 'Pilze wachsen aus deinem Netz und bilden Sporen. Mit Sporen kannst du neu starten und dauerhafte Boni kaufen.',
+    cost: () => ({ Z: 2500, M: 300 }), vis: () => S.ever.M > 0 },
+  { id: 'pilz', name: 'Kräftige Fruchtkörper', max: 8, desc: () => 'Fruchtkörper bilden 50 % mehr Sporen.',
+    cost: l => ({ Z: 4000 * Math.pow(3, l) }), vis: () => S.up.frucht > 0 },
+];
+const ERBS = [
+  { id: 'kraft', name: 'Kräftiges Erbe', max: 20, desc: () => '+25 % auf alle Erträge.', cost: l => l + 1 },
+  { id: 'vorrat', name: 'Sporenvorrat', max: 5, desc: l => `Starte mit ${fmt(startN(l + 1))} Nährstoffen.`, cost: l => 2 * (l + 1) },
+  { id: 'wissen', name: 'Uraltes Wissen', max: 3, desc: () => 'Enzyme und Feine Hyphen starten eine Stufe höher.', cost: l => 3 * (l + 1) },
+  { id: 'wald', name: 'Waldgedächtnis', max: 3, desc: () => 'Bäume starten eine Stufe stärker.', cost: l => 4 * (l + 1) },
+  { id: 'boden', name: 'Fruchtbarer Boden', max: 3, desc: () => 'Neue Wälder haben 15 % mehr Fundorte.', cost: l => 3 * (l + 1) },
+  { id: 'spitze', name: 'Angeborene Spitzen', max: 2, desc: () => 'Starte mit einer Stufe Wachstumsspitzen.', cost: l => 6 * (l + 1) },
+];
+const startN = l => 20 + [0, 120, 500, 1800, 6000, 20000][l];
+const autoInt = l => Math.max(3, Math.round(20 * Math.pow(0.72, l - 1)));
+
+function countOwned() { let c = 0; for (let i = 0; i < N * N; i++) if (S.own[i] === 1) c++; return c; }
+function countWhere(fn) { let c = 0; for (let i = 0; i < N * N; i++) if (fn(i)) c++; return c; }
+const MILES = [
+  { id: 'c5', name: 'Erste Fäden', desc: 'Besitze 5 Felder', goal: () => [D.owned, 5], reward: { N: 25 } },
+  { id: 'laub3', name: 'Laubfresser', desc: 'Zersetze 3 Haufen komplett', goal: () => [S.stats.depleted, 3], reward: { N: 60 } },
+  { id: 'wasser', name: 'Durst gestillt', desc: 'Verbinde eine Wasserader', goal: () => [D.water, 1], reward: { N: 80 } },
+  { id: 'baum', name: 'Baumfreundschaft', desc: 'Verbinde eine Baumwurzel', goal: () => [D.trees.length, 1], reward: { Z: 15 } },
+  { id: 'c25', name: 'Wurzelwerk', desc: 'Besitze 25 Felder', goal: () => [D.owned, 25], reward: { Z: 30 } },
+  { id: 'knochen', name: 'Fundstück', desc: 'Sammle 20 Mineralien', goal: () => [S.runTotal.M, 20], reward: { Z: 40 } },
+  { id: 'z500', name: 'Süßes Leben', desc: 'Sammle insgesamt 500 Zucker', goal: () => [S.runTotal.Z, 500], reward: { M: 20 } },
+  { id: 'stein', name: 'Steinbrecher', desc: 'Wachse durch Stein', goal: () => [S.stats.stone, 1], reward: { Z: 80 } },
+  { id: 'trees3', name: 'Waldnetz', desc: 'Verbinde 3 Bäume', goal: () => [D.trees.length, 3], reward: { Z: 200 } },
+  { id: 'baum5', name: 'Alter Riese', desc: 'Bringe einen Baum auf Stufe 5', goal: () => [D.maxTree, 5], reward: { Z: 300 } },
+  { id: 'c100', name: 'Weites Myzel', desc: 'Besitze 100 Felder', goal: () => [D.owned, 100], reward: { Z: 500, M: 50 } },
+  { id: 'frucht1', name: 'Erster Pilz', desc: 'Lass einen Fruchtkörper wachsen', goal: () => [D.fruits, 1], reward: { Z: 800 } },
+  { id: 'trees8', name: 'Herz des Waldes', desc: 'Verbinde 8 Bäume', goal: () => [D.trees.length, 8], reward: { M: 300 } },
+  { id: 'c250', name: 'Unterirdisches Reich', desc: 'Besitze 250 Felder', goal: () => [D.owned, 250], reward: { Z: 5000, M: 500 } },
+];
+
+function newState(meta) {
+  const seed = (Math.random() * 1e9) | 0;
+  const s = {
+    v: 1, seed, t: Date.now(), st: 0,
+    res: { N: 0, W: 0, Z: 0, M: 0, S: 0 },
+    ever: { N: 0, W: 0, Z: 0, M: 0, S: 0 },
+    runTotal: { N: 0, W: 0, Z: 0, M: 0, S: 0 },
+    type: [], amt: [], own: [], prog: [], par: [], bld: [], lvl: [], rev: [],
+    up: {}, miles: {}, stats: { depleted: 0, stone: 0, grown: 0 }, autoOn: true, autoT: 5,
+    meta: meta || { erb: {}, pts: 0, runs: 0, best: 0 },
+  };
+  for (const u of UPS) s.up[u.id] = 0;
+  return s;
+}
+const E = id => (S.meta.erb[id] || 0);
+
+function genMap(s) {
+  const rng = mulberry32(s.seed);
+  const nS = makeNoise(rng, 4.5), nW = makeNoise(rng, 3.5);
+  const f = 1 + 0.15 * (s.meta.erb.boden || 0);
+  for (let i = 0; i < N * N; i++) {
+    const x = i % N, y = (i / N) | 0, d = Math.hypot(x - C, y - C);
+    let t = T.ERDE, amt = 0;
+    if (d > 3.5 && nS(x, y) > 0.66 - Math.min(0.12, d * 0.004)) t = T.STEIN;
+    else if (d > 3 && nW(x, y) > 0.86) t = T.WASSER;
+    else {
+      const q = rng();
+      let acc = (d < 9 ? 0.1 : 0.07) * f;
+      if (q < acc) t = T.LAUB;
+      else if (d > 6 && q < (acc += 0.035 * f)) t = T.HOLZ;
+      else if (d > 7 && q < (acc += 0.02 * f)) t = T.KNOCHEN;
+      else if (d > 10 && q < (acc += 0.012 * f)) t = T.MINERAL;
+    }
+    if (TYPES[t].finite) amt = TYPES[t].amt * (0.8 + rng() * 0.4);
+    s.type[i] = t; s.amt[i] = amt; s.own[i] = 0; s.prog[i] = 0; s.par[i] = -1; s.bld[i] = 0; s.lvl[i] = 0; s.rev[i] = 0;
+  }
+  const set = (x, y, t) => {
+    const i = y * N + x; s.type[i] = t; s.amt[i] = TYPES[t].finite ? TYPES[t].amt : 0;
+    if (t === T.BAUM) s.lvl[i] = 1 + (s.meta.erb.wald || 0);
+  };
+  const clearLine = (x, y) => {
+    const steps = Math.ceil(Math.hypot(x - C, y - C) * 2);
+    for (let k = 0; k <= steps; k++) {
+      const xx = Math.round(C + (x - C) * k / steps), yy = Math.round(C + (y - C) * k / steps), i = yy * N + xx;
+      if (s.type[i] === T.STEIN || s.type[i] === T.WASSER) s.type[i] = T.ERDE;
+    }
+  };
+  // Bäume mit Abstand verteilen
+  const trees = [];
+  for (let k = 0; k < 900 && trees.length < 22; k++) {
+    const x = 2 + Math.floor(rng() * (N - 4)), y = 2 + Math.floor(rng() * (N - 4));
+    if (Math.hypot(x - C, y - C) < 8) continue;
+    if (trees.some(([a, b]) => Math.hypot(a - x, b - y) < 6.5)) continue;
+    trees.push([x, y]); set(x, y, T.BAUM);
+  }
+  // Startbereich: freie Mitte, etwas Laub, sicher eine Wasserader und ein Baum in Reichweite
+  for (let y = C - 1; y <= C + 1; y++) for (let x = C - 1; x <= C + 1; x++) set(x, y, T.ERDE);
+  const a = rng() * Math.PI * 2;
+  const wx = Math.round(C + Math.cos(a) * 3.2), wy = Math.round(C + Math.sin(a) * 3.2);
+  clearLine(wx, wy); set(wx, wy, T.WASSER);
+  const tx = Math.round(C + Math.cos(a + 2.2) * 5.6), ty = Math.round(C + Math.sin(a + 2.2) * 5.6);
+  clearLine(tx, ty); set(tx, ty, T.BAUM);
+  for (let k = 0; k < 4; k++) {
+    const b = a + 1 + k * 1.3, r = 1.6 + (k % 2) * 0.9;
+    const lx = Math.round(C + Math.cos(b) * r), ly = Math.round(C + Math.sin(b) * r);
+    if (s.type[ly * N + lx] === T.ERDE && Math.hypot(lx - C, ly - C) > 1.2) set(lx, ly, T.LAUB);
+  }
+  const bx = Math.round(C + Math.cos(a - 2.0) * 8.5), by = Math.round(C + Math.sin(a - 2.0) * 8.5);
+  clearLine(bx, by); set(bx, by, T.KNOCHEN);
+  const hx = Math.round(C + Math.cos(a - 1.0) * 6), hy = Math.round(C + Math.sin(a - 1.0) * 6);
+  if (s.type[hy * N + hx] === T.ERDE) set(hx, hy, T.HOLZ);
+  const c = C * N + C;
+  s.own[c] = 1; s.prog[c] = 1;
+}
+
+function startRun(meta) {
+  S = newState(meta);
+  genMap(S);
+  S.res.N = startN(E('vorrat'));
+  S.up.enzyme = E('wissen'); S.up.hyphen = E('wissen'); S.up.spitzen = E('spitze');
+  revealAround(C * N + C);
+  rebuildAll();
+}
+
+// ---- Abgeleitete Daten -----------------------------------------------------
+const D = { owned: 0, growing: [], prodList: [], trees: [], water: 0, fruits: 0, zersetzer: 0, maxTree: 0, boost: null,
+            frontier: new Set(), rates: { N: 0, W: 0, Z: 0, M: 0, S: 0 }, netDirty: true, fogDirty: true, terrainDirty: [] };
+function rebuildAll() {
+  D.owned = 0; D.growing = []; D.prodList = []; D.trees = []; D.water = 0; D.fruits = 0; D.zersetzer = 0; D.maxTree = 0;
+  D.boost = new Float32Array(N * N).fill(1);
+  for (let i = 0; i < N * N; i++) {
+    if (S.own[i] === 2) D.growing.push(i);
+    if (S.own[i] !== 1) continue;
+    D.owned++;
+    const t = S.type[i];
+    if (t === T.BAUM) { D.trees.push(i); D.maxTree = Math.max(D.maxTree, S.lvl[i]); }
+    else if (t !== T.ERDE && t !== T.STEIN) D.prodList.push(i);
+    if (t === T.WASSER) D.water++;
+    if (S.bld[i] === 2) { D.fruits++; D.prodList.push(i); }
+    if (S.bld[i] === 1) {
+      D.zersetzer++;
+      const x = i % N, y = (i / N) | 0;
+      for (let yy = Math.max(0, y - 2); yy <= Math.min(N - 1, y + 2); yy++)
+        for (let xx = Math.max(0, x - 2); xx <= Math.min(N - 1, x + 2); xx++) D.boost[yy * N + xx] += 0.5;
+    }
+  }
+  D.frontier.clear();
+  for (let i = 0; i < N * N; i++) if (S.own[i] === 0 && S.rev[i] && neighbors4(i).some(j => S.own[j] === 1)) D.frontier.add(i);
+  D.netDirty = true;
+  if (!SIM && tab === 'feld') D.panelStale = true;
+}
+function revealAround(i) {
+  const r = 2 + S.up.sinne, x = i % N, y = (i / N) | 0;
+  for (let yy = Math.max(0, y - r); yy <= Math.min(N - 1, y + r); yy++)
+    for (let xx = Math.max(0, x - r); xx <= Math.min(N - 1, x + r); xx++) {
+      if (Math.hypot(xx - x, yy - y) > r + 0.5) continue;
+      S.rev[yy * N + xx] = 1;
+    }
+  D.fogDirty = true;
+}
+function revealAll() { for (let i = 0; i < N * N; i++) if (S.own[i] === 1) revealAround(i); rebuildAll(); }
+
+// ---- Regeln ----------------------------------------------------------------
+function season() { return Math.floor(S.st / SEASON_LEN) % 4; }
+function mults() {
+  const k = 1 + 0.25 * E('kraft'), se = season();
+  return {
+    N: (1 + 0.5 * S.up.enzyme) * k * (se === 2 ? 1.2 : se === 3 ? 0.6 : 1),
+    W: (1 + 0.5 * S.up.kapillar) * k * (se === 1 ? 0.7 : se === 3 ? 1.4 : 1),
+    Z: (1 + 0.4 * S.up.symbiose) * k * (se === 1 ? 1.5 : 1),
+    M: (1 + 0.3 * S.up.gestein) * k,
+  };
+}
+function maxPar() { return 2 + S.up.tempo; }
+function growTime() { return 5 * Math.pow(0.7, S.up.tempo) * (season() === 0 ? 0.5 : 1); }
+function canGrow(i) { return S.own[i] === 0 && S.rev[i] === 1 && D.frontier.has(i) && (S.type[i] !== T.STEIN || S.up.saeure >= 1); }
+function growCost(i) {
+  let c = baseGrowCost();
+  if (S.type[i] === T.STEIN) c *= S.up.saeure >= 2 ? 2.5 : 5;
+  return { N: c };
+}
+function baseGrowCost() { const n = D.owned + D.growing.length - 1; return (5 + 0.15 * Math.pow(Math.max(0, n), 1.75)) * Math.pow(0.85, S.up.hyphen); }
+function treeCost(i) { const l = S.lvl[i]; return { N: 60 * Math.pow(3, l - 1), W: 40 * Math.pow(2.6, l - 1), M: l >= 2 ? 8 * Math.pow(2.4, l - 2) : 0 }; }
+function bldCost(b) { return b === 1 ? { N: 40 * Math.pow(1.7, D.zersetzer) } : { Z: 2000 * Math.pow(4, D.fruits), M: 200 * Math.pow(3, D.fruits) }; }
+function canAfford(cost) { for (const k in cost) if (cost[k] > 0 && S.res[k] < cost[k] - 1e-9) return false; return true; }
+function pay(cost) { for (const k in cost) S.res[k] -= cost[k] || 0; }
+function gain(res, v) { S.res[res] += v; S.ever[res] = Math.max(S.ever[res], S.res[res]); if (v > 0) S.runTotal[res] += v; }
+function humus() { return (0.25 + 0.02 * D.owned) * mults().N; }
+function offlineCap() { return (2 + 2 * S.up.ruhe) * 3600; }
+function sporeGain() { return Math.floor(S.res.S / 3) + Math.floor(D.owned / 25); }
+
+function startGrow(i, auto) {
+  if (!canGrow(i)) return false;
+  const cost = growCost(i);
+  if (!canAfford(cost) || D.growing.length >= maxPar()) return false;
+  pay(cost);
+  const opts = neighbors4(i).filter(j => S.own[j] === 1);
+  S.par[i] = opts[Math.floor(hash(i * 31 + S.seed) * opts.length)];
+  S.own[i] = 2; S.prog[i] = 0;
+  D.growing.push(i); D.frontier.delete(i); D.netDirty = true;
+  if (!auto && !SIM) sfx.grow();
+  return true;
+}
+function finishGrow(i) {
+  S.own[i] = 1; S.prog[i] = 1; S.stats.grown++;
+  if (S.type[i] === T.STEIN) { S.type[i] = T.ERDE; S.stats.stone++; D.terrainDirty.push(i); }
+  revealAround(i);
+  rebuildAll();
+  if (!SIM) {
+    sfx.done();
+    const t = S.type[i];
+    if (t === T.BAUM && D.trees.length === 1) toast('<b>Ein Baum!</b> Er gibt dir Zucker, solange dein Netz Wasser hat.');
+    else if (t === T.WASSER && D.water === 1) toast('<b>Wasser!</b> Bäume brauchen es, um dir Zucker zu geben.');
+  }
+}
+function deplete(i) {
+  S.type[i] = T.ERDE; S.amt[i] = 0; S.stats.depleted++;
+  D.terrainDirty.push(i); D.prodDirty = true;
+}
+function leafFall() {
+  const rng = mulberry32((S.seed + Math.floor(S.st)) | 0);
+  let n = 0;
+  for (let i = 0; i < N * N; i++) {
+    if (S.type[i] !== T.ERDE || S.bld[i] || i === C * N + C || S.own[i] === 2 || !S.rev[i]) continue;
+    if (rng() < (S.own[i] === 1 ? 0.06 : 0.015)) { S.type[i] = T.LAUB; S.amt[i] = 40; D.terrainDirty.push(i); if (S.own[i] === 1) n++; }
+  }
+  rebuildAll();
+  return n;
+}
+
+// Wachstumsspitzen: kürzester Weg (Breitensuche) zum nächsten Fundort, erster Schritt wird gewachsen
+const RESOURCE_TYPES = new Set([T.LAUB, T.HOLZ, T.WASSER, T.BAUM, T.MINERAL, T.KNOCHEN]);
+function autoGrow() {
+  const prev = new Int32Array(N * N).fill(-2), q = [];
+  for (let i = 0; i < N * N; i++) if (S.own[i] === 1) { prev[i] = -1; q.push(i); }
+  let target = -1, fogTarget = -1;
+  const pass = i => S.rev[i] && S.own[i] === 0 && (S.type[i] !== T.STEIN || S.up.saeure >= 1);
+  for (let h = 0; h < q.length && target < 0; h++) {
+    const c = q[h];
+    for (const j of neighbors4(c)) {
+      if (prev[j] !== -2 || !pass(j)) continue;
+      prev[j] = c; q.push(j);
+      if (RESOURCE_TYPES.has(S.type[j])) { target = j; break; }
+      if (fogTarget < 0 && neighbors4(j).some(k => !S.rev[k])) fogTarget = j;
+    }
+  }
+  if (target < 0) target = fogTarget;
+  if (target < 0) return false;
+  let step = target;
+  while (prev[step] >= 0 && S.own[prev[step]] !== 1) step = prev[step];
+  return startGrow(step, true);
+}
+
+// ---- Simulation ------------------------------------------------------------
+let SIM = false;
+function tick(dt) {
+  const oldSe = season();
+  S.st += dt;
+  const se = season();
+  if (se !== oldSe) {
+    let fell = 0;
+    if (se === 2) fell = leafFall();
+    if (!SIM) toast(`<b>${SEASONS[se].name}.</b> ${SEASONS[se].note}` + (fell ? ` ${fell} Haufen landen direkt auf deinem Netz.` : ''));
+  }
+  // Wachstum
+  if (D.growing.length) {
+    const gt = growTime();
+    for (const i of D.growing.slice()) {
+      S.prog[i] += dt / gt;
+      if (S.prog[i] >= 1) finishGrow(i);
+    }
+  }
+  // Erträge
+  const m = mults(), d = { N: 0, W: 0, Z: 0, M: 0, S: 0 };
+  D.prodDirty = false;
+  for (const i of D.prodList) {
+    const t = S.type[i];
+    if (t === T.LAUB || t === T.HOLZ || t === T.KNOCHEN) {
+      const info = TYPES[t];
+      const rate = info.rate * (t === T.KNOCHEN ? m.M : m.N) * D.boost[i];
+      const take = Math.min(S.amt[i], rate * dt);
+      S.amt[i] -= take; d[info.res] += take;
+      if (S.amt[i] <= 1e-6) deplete(i);
+    } else if (t === T.WASSER) d.W += TYPES[t].rate * m.W * dt;
+    else if (t === T.MINERAL) d.M += TYPES[t].rate * m.M * dt;
+    if (S.bld[i] === 2) d.S += 0.003 * (1 + 0.5 * S.up.pilz) * dt;
+  }
+  if (D.prodDirty) rebuildAll();
+  d.N += humus() * dt;
+  let want = 0;
+  for (const i of D.trees) want += S.lvl[i] * 0.8 * dt;
+  if (want > 0) {
+    const ratio = Math.min(1, Math.max(0, S.res.W + d.W) / want);
+    for (const i of D.trees) d.Z += S.lvl[i] * 0.5 * m.Z * ratio * dt;
+    d.W -= want * ratio;
+    D.thirst = ratio;
+  } else D.thirst = 1;
+  for (const k in d) if (d[k]) gain(k, d[k]);
+  if (S.res.W < 0) S.res.W = 0;
+  const a = 1 - Math.exp(-dt / 1.2);
+  for (const k in d) D.rates[k] += (d[k] / dt - D.rates[k]) * a;
+  // Automatik
+  if (S.up.spitzen > 0 && S.autoOn) {
+    S.autoT -= dt;
+    if (S.autoT <= 0) { S.autoT = autoInt(S.up.spitzen); autoGrow(); }
+  }
+  // Erfolge
+  D.mileT = (D.mileT || 0) - dt;
+  if (D.mileT <= 0) { D.mileT = 0.5; checkMiles(); }
+}
+function checkMiles() {
+  for (const ms of MILES) {
+    if (S.miles[ms.id]) continue;
+    const [v, g] = ms.goal();
+    if (v >= g) {
+      S.miles[ms.id] = 1;
+      for (const k in ms.reward) gain(k, ms.reward[k]);
+      if (!SIM) { toast(`<b>Erfolg: ${ms.name}</b> ${rewardText(ms.reward)}`); sfx.chime(); D.newMile = true; }
+    }
+  }
+}
+function rewardText(r) { return Object.keys(r).map(k => `+${fmt(r[k])} ${RES[k].name}`).join(', '); }
+
+function catchUp(sec, showModal) {
+  sec = Math.min(sec, offlineCap());
+  if (sec < 1) return;
+  const before = Object.assign({}, S.res), cellsBefore = D.owned;
+  SIM = true;
+  const step = sec > 4 * 3600 ? 2 : 1;
+  let left = sec;
+  while (left > 0) { const dt = Math.min(step, left); tick(dt); left -= dt; }
+  SIM = false;
+  D.fogDirty = true; D.netDirty = true;
+  for (let i = 0; i < N * N; i++) D.terrainDirty.push(i);
+  if (showModal && sec >= 60) {
+    const lines = [];
+    for (const k of ['N', 'W', 'Z', 'M', 'S']) {
+      const g = S.res[k] - before[k];
+      if (g > 0.5) lines.push(`<span class="c-${k}">+${fmt(g)} ${RES[k].name}</span>`);
+    }
+    if (D.owned > cellsBefore) lines.push(`<span style="color:var(--myc)">+${D.owned - cellsBefore} Felder gewachsen</span>`);
+    openModal(`<h2>Willkommen zurück</h2>
+      <p class="muted">Du warst ${fmtTime(sec)} weg${sec >= offlineCap() - 1 ? ' (mehr wird nicht gesammelt, das verlängert die Winterruhe)' : ''}. Dein Myzel hat weitergearbeitet:</p>
+      <div class="gains">${lines.join('') || '<span class="muted">Nichts Neues. Verbinde Fundorte, damit etwas fließt.</span>'}</div>
+      <button class="btn primary" data-act="closeModal"><span>Weiter</span></button>`);
+  }
+  rebuildAll();
+}
+
+// ---- Speichern -------------------------------------------------------------
+function save() {
+  if (!S) return;
+  S.t = Date.now();
+  store.set(SAVE_KEY, JSON.stringify(S));
+}
+function load() {
+  const raw = store.get(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const s = JSON.parse(raw);
+    if (!s || s.v !== 1 || !Array.isArray(s.type) || s.type.length !== N * N) return false;
+    for (const u of UPS) if (s.up[u.id] == null) s.up[u.id] = 0;
+    S = s;
+    rebuildAll();
+    return true;
+  } catch (e) { return false; }
+}
+
+// ---- Audio -----------------------------------------------------------------
+let AC = null, master = null, muted = store.get('myzel.muted') === '1';
+function audio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination); } catch (e) { AC = null; }
+}
+function tone(f, f2, dur, vol, type = 'sine', delay = 0) {
+  if (!AC || muted) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+}
+const sfx = {
+  grow: () => tone(220, 330, 0.18, 0.06, 'triangle'),
+  done: () => tone(520 + Math.random() * 120, 0, 0.12, 0.03),
+  buy: () => { tone(392, 0, 0.12, 0.07, 'triangle'); tone(587, 0, 0.18, 0.06, 'triangle', 0.07); },
+  chime: () => { tone(659, 0, 0.3, 0.06); tone(880, 0, 0.35, 0.05, 'sine', 0.1); tone(1175, 0, 0.5, 0.04, 'sine', 0.2); },
+  no: () => tone(160, 120, 0.12, 0.05, 'square'),
+};
+
+// ---- Darstellung -----------------------------------------------------------
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const cam = { x: (C + 0.5) * CELL, y: (C + 0.5) * CELL, z: 1.2 };
+let sel = -1;
+const TC = document.createElement('canvas'); TC.width = TC.height = N * CELL;
+const tctx = TC.getContext('2d');
+const FC = document.createElement('canvas'); FC.width = FC.height = N;
+const fctx = FC.getContext('2d');
+let netPath = null, webPath = null;
+const pulses = [];
+
+function resize() {
+  const r = cv.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+}
+new ResizeObserver(resize).observe(cv);
+
+function drawTerrainCell(i) {
+  const x0 = (i % N) * CELL, y0 = ((i / N) | 0) * CELL, cx = x0 + CELL / 2, cy = y0 + CELL / 2, h = k => hash(i * 13 + k);
+  const g = tctx;
+  g.save();
+  g.beginPath(); g.rect(x0, y0, CELL, CELL); g.clip();
+  g.fillStyle = `hsl(${24 + h(1) * 8},${28 + h(2) * 10}%,${11 + h(3) * 4}%)`;
+  g.fillRect(x0, y0, CELL, CELL);
+  for (let k = 0; k < 9; k++) {
+    g.fillStyle = h(10 + k) > 0.5 ? 'rgba(255,220,180,0.05)' : 'rgba(0,0,0,0.18)';
+    const r = 0.8 + h(20 + k) * 2.2;
+    g.beginPath(); g.arc(x0 + h(30 + k) * CELL, y0 + h(40 + k) * CELL, r, 0, 7); g.fill();
+  }
+  const t = S.type[i];
+  if (t === T.STEIN) {
+    for (let k = 0; k < 2; k++) {
+      const sx = cx + (h(50 + k) - 0.5) * 12, sy = cy + (h(52 + k) - 0.5) * 12, r = 9 + h(54 + k) * 5 - k * 3;
+      g.beginPath();
+      for (let p = 0; p < 7; p++) { const a = p / 7 * Math.PI * 2, rr = r * (0.75 + h(60 + p + k * 7) * 0.35); g.lineTo(sx + Math.cos(a) * rr, sy + Math.sin(a) * rr); }
+      g.closePath();
+      g.fillStyle = `hsl(30,6%,${34 + h(70 + k) * 10}%)`; g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1; g.stroke();
+      g.fillStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.arc(sx - r * 0.3, sy - r * 0.3, r * 0.35, 0, 7); g.fill();
+    }
+  } else if (t === T.LAUB) {
+    const cols = ['#b5651d', '#d08b2e', '#8c4a1a', '#c9a13a'];
+    for (let k = 0; k < 4; k++) {
+      const lx = cx + (h(80 + k) - 0.5) * 16, ly = cy + (h(84 + k) - 0.5) * 16, a = h(88 + k) * Math.PI * 2;
+      g.save(); g.translate(lx, ly); g.rotate(a);
+      g.fillStyle = cols[k % 4]; g.beginPath(); g.ellipse(0, 0, 7, 3.6, 0, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(60,25,5,0.6)'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(-7, 0); g.lineTo(7, 0); g.stroke();
+      g.restore();
+    }
+  } else if (t === T.HOLZ) {
+    g.save(); g.translate(cx, cy); g.rotate((h(90) - 0.5) * 1.6);
+    g.fillStyle = '#5d3b20'; g.fillRect(-14, -5, 26, 10);
+    g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 0.8;
+    for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(-12 + k * 7, -4); g.lineTo(-8 + k * 7, 4); g.stroke(); }
+    g.fillStyle = '#8a6239'; g.beginPath(); g.ellipse(12, 0, 3.5, 5, 0, 0, 7); g.fill();
+    g.strokeStyle = '#5d3b20'; g.beginPath(); g.ellipse(12, 0, 1.8, 2.6, 0, 0, 7); g.stroke();
+    g.fillStyle = '#4c7a3a'; g.beginPath(); g.arc(-6, -4, 2, 0, 7); g.arc(-2, -5, 1.5, 0, 7); g.fill();
+    g.restore();
+  } else if (t === T.WASSER) {
+    const gr = g.createRadialGradient(cx - 3, cy - 3, 2, cx, cy, 18);
+    gr.addColorStop(0, '#3f8fb3'); gr.addColorStop(0.7, '#1f4f68'); gr.addColorStop(1, 'rgba(25,55,75,0)');
+    g.fillStyle = gr; g.fillRect(x0, y0, CELL, CELL);
+    g.strokeStyle = 'rgba(160,220,255,0.35)'; g.lineWidth = 1;
+    g.beginPath(); g.arc(cx + 3, cy + 2, 4, 3.6, 5.6); g.stroke();
+    g.beginPath(); g.arc(cx - 5, cy - 3, 2.5, 3.6, 5.6); g.stroke();
+  } else if (t === T.BAUM) {
+    g.strokeStyle = '#4a2f18'; g.lineCap = 'round';
+    for (let k = 0; k < 7; k++) {
+      const a = k / 7 * Math.PI * 2 + h(100) * 2, len = 15 + h(101 + k) * 5;
+      g.lineWidth = 3.2 - h(110 + k);
+      g.beginPath(); g.moveTo(cx, cy);
+      g.quadraticCurveTo(cx + Math.cos(a + 0.4) * len * 0.5, cy + Math.sin(a + 0.4) * len * 0.5, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+      g.stroke();
+    }
+    g.fillStyle = '#3a2412'; g.beginPath(); g.arc(cx, cy, 8, 0, 7); g.fill();
+    g.strokeStyle = '#6b4526'; g.lineWidth = 1;
+    g.beginPath(); g.arc(cx, cy, 5, 0, 7); g.stroke(); g.beginPath(); g.arc(cx, cy, 2.5, 0, 7); g.stroke();
+  } else if (t === T.MINERAL) {
+    for (let k = 0; k < 3; k++) {
+      const mx = cx + (k - 1) * 6, my = cy + 4 - (k === 1 ? 3 : 0), hh = 10 + (k === 1 ? 5 : 0);
+      g.fillStyle = k === 1 ? '#c9b8ff' : '#8f78e8';
+      g.beginPath(); g.moveTo(mx - 3, my); g.lineTo(mx, my - hh); g.lineTo(mx + 3, my); g.lineTo(mx, my + 3); g.closePath(); g.fill();
+    }
+  } else if (t === T.KNOCHEN) {
+    g.save(); g.translate(cx, cy); g.rotate((h(120) - 0.5) * 2);
+    g.fillStyle = '#e6dcc4';
+    g.fillRect(-9, -2, 18, 4);
+    for (const sx of [-9, 9]) for (const sy of [-2.5, 2.5]) { g.beginPath(); g.arc(sx, sy, 2.8, 0, 7); g.fill(); }
+    g.restore();
+  }
+  g.restore();
+}
+function drawAllTerrain() { for (let i = 0; i < N * N; i++) drawTerrainCell(i); D.terrainDirty.length = 0; }
+
+function updateFog() {
+  const img = fctx.createImageData(N, N);
+  for (let i = 0; i < N * N; i++) {
+    img.data[i * 4] = 10; img.data[i * 4 + 1] = 7; img.data[i * 4 + 2] = 5;
+    img.data[i * 4 + 3] = S.rev[i] ? 0 : 245;
+  }
+  fctx.putImageData(img, 0, 0);
+  D.fogDirty = false;
+}
+const center = i => [(i % N + 0.5) * CELL, (((i / N) | 0) + 0.5) * CELL];
+function ctrlPt(p, i) {
+  const [ax, ay] = center(p), [bx, by] = center(i), off = (hash(i * 7 + 3) - 0.5) * CELL * 0.5;
+  return [(ax + bx) / 2 + (ay - by) / CELL * off, (ay + by) / 2 + (bx - ax) / CELL * off];
+}
+function quad(a, c, b, t) {
+  const u = 1 - t;
+  return [u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]];
+}
+function buildNet() {
+  netPath = new Path2D(); webPath = new Path2D();
+  for (let i = 0; i < N * N; i++) {
+    if (S.own[i] !== 1) continue;
+    const [bx, by] = center(i);
+    if (S.par[i] >= 0) {
+      const [ax, ay] = center(S.par[i]), [qx, qy] = ctrlPt(S.par[i], i);
+      netPath.moveTo(ax, ay); netPath.quadraticCurveTo(qx, qy, bx, by);
+    }
+    for (let k = 0; k < 5; k++) {
+      const a = hash(i * 17 + k) * Math.PI * 2, len = 7 + hash(i * 19 + k) * 10;
+      webPath.moveTo(bx, by);
+      webPath.quadraticCurveTo(bx + Math.cos(a + 0.6) * len * 0.6, by + Math.sin(a + 0.6) * len * 0.6, bx + Math.cos(a) * len, by + Math.sin(a) * len);
+    }
+  }
+  D.netDirty = false;
+}
+function spawnPulse(i, res) {
+  if (pulses.length > 60) return;
+  const path = [i];
+  let c = i, guard = 0;
+  while (S.par[c] >= 0 && guard++ < 400) { c = S.par[c]; path.push(c); }
+  if (path.length < 2) return;
+  pulses.push({ path, k: 0, t: 0, col: RES_COL[res] });
+}
+
+function render(dt, now) {
+  if (D.netDirty) buildNet();
+  if (D.fogDirty) updateFog();
+  if (D.terrainDirty.length) { const set = new Set(D.terrainDirty); D.terrainDirty.length = 0; for (const i of set) drawTerrainCell(i); }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#0a0705'; ctx.fillRect(0, 0, W, H);
+  const z = cam.z, ox = W / 2 - cam.x * z, oy = H / 2 - cam.y * z;
+  ctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * ox, DPR * oy);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(TC, 0, 0);
+
+  // sichtbarer Ausschnitt in Feldern
+  const x0 = Math.max(0, Math.floor((-ox / z) / CELL)), y0 = Math.max(0, Math.floor((-oy / z) / CELL));
+  const x1 = Math.min(N - 1, Math.ceil(((W - ox) / z) / CELL)), y1 = Math.min(N - 1, Math.ceil(((H - oy) / z) / CELL));
+
+  // eigenes Gebiet leicht aufhellen
+  ctx.fillStyle = 'rgba(244,234,214,0.035)';
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (S.own[y * N + x] === 1) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+
+  // Myzel
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(244,234,214,0.28)'; ctx.lineWidth = 0.8; ctx.stroke(webPath);
+  ctx.strokeStyle = 'rgba(244,234,214,0.12)'; ctx.lineWidth = 7; ctx.stroke(netPath);
+  ctx.strokeStyle = 'rgba(244,234,214,0.9)'; ctx.lineWidth = 2.2; ctx.stroke(netPath);
+  // wachsende Fäden
+  for (const i of D.growing) {
+    const p = S.par[i]; if (p < 0) continue;
+    const a = center(p), b = center(i), c = ctrlPt(p, i), t = clamp(S.prog[i], 0, 1);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]);
+    for (let k = 1; k <= 12; k++) { const q = quad(a, c, b, t * k / 12); ctx.lineTo(q[0], q[1]); }
+    ctx.strokeStyle = 'rgba(244,234,214,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    const tip = quad(a, c, b, t);
+    ctx.fillStyle = 'rgba(255,250,235,0.9)'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 2.6 + Math.sin(now * 10) * 0.6, 0, 7); ctx.fill();
+  }
+  // Ursprung
+  {
+    const [rx, ry] = center(C * N + C);
+    const g = ctx.createRadialGradient(rx, ry, 0, rx, ry, 18);
+    g.addColorStop(0, 'rgba(255,248,230,0.75)'); g.addColorStop(1, 'rgba(255,248,230,0)');
+    ctx.fillStyle = g; ctx.fillRect(rx - 18, ry - 18, 36, 36);
+    ctx.fillStyle = '#fff8e8'; ctx.beginPath(); ctx.arc(rx, ry, 4 + Math.sin(now * 2) * 0.6, 0, 7); ctx.fill();
+  }
+
+  // Zellen-Overlays (Wachstumsziele nur zeigen, wenn gerade bezahlbar)
+  const showFrontier = D.growing.length < maxPar() && S.res.N >= baseGrowCost() && z > 0.6;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = y * N + x, cx = (x + 0.5) * CELL, cy = (y + 0.5) * CELL;
+    if (S.own[i] === 1) {
+      const t = S.type[i];
+      if (TYPES[t].finite) {
+        const f = clamp(S.amt[i] / TYPES[t].amt, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x * CELL + 5, y * CELL + CELL - 6, CELL - 10, 3);
+        ctx.fillStyle = RES_COL[TYPES[t].res]; ctx.fillRect(x * CELL + 5, y * CELL + CELL - 6, (CELL - 10) * f, 3);
+      }
+      if (t === T.BAUM) {
+        ctx.fillStyle = 'rgba(20,14,9,0.85)'; ctx.beginPath(); ctx.arc(x * CELL + CELL - 8, y * CELL + 8, 6.5, 0, 7); ctx.fill();
+        ctx.fillStyle = D.thirst < 0.99 ? '#ff9d8a' : '#f08fb4'; ctx.font = '800 9px "Alegreya Sans", sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(S.lvl[i], x * CELL + CELL - 8, y * CELL + 8.5);
+      }
+      if (S.bld[i] === 1) {
+        const r = 6 + Math.sin(now * 2 + i) * 0.8;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14);
+        g.addColorStop(0, 'rgba(224,166,90,0.55)'); g.addColorStop(1, 'rgba(224,166,90,0)');
+        ctx.fillStyle = g; ctx.fillRect(cx - 14, cy - 14, 28, 28);
+        ctx.strokeStyle = '#e0a65a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
+        ctx.fillStyle = '#ffd59a'; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, 7); ctx.fill();
+      } else if (S.bld[i] === 2) {
+        const g = ctx.createRadialGradient(cx, cy - 3, 0, cx, cy - 3, 16);
+        g.addColorStop(0, 'rgba(159,230,180,0.35)'); g.addColorStop(1, 'rgba(159,230,180,0)');
+        ctx.fillStyle = g; ctx.fillRect(cx - 16, cy - 19, 32, 32);
+        ctx.fillStyle = '#efe2c6'; ctx.fillRect(cx - 2.5, cy - 2, 5, 10);
+        ctx.fillStyle = '#b8463a'; ctx.beginPath(); ctx.ellipse(cx, cy - 3, 10, 6.5, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f6ecd6';
+        for (const [sx, sy] of [[-5, -5], [1, -7], [5, -4], [-1, -4.5]]) { ctx.beginPath(); ctx.arc(cx + sx, cy + sy, 1.1, 0, 7); ctx.fill(); }
+        const sp = (now * 0.6 + hash(i)) % 1;
+        ctx.globalAlpha = 1 - sp; ctx.fillStyle = '#9fe6b4';
+        ctx.beginPath(); ctx.arc(cx + Math.sin(now + i) * 6, cy - 8 - sp * 14, 1.1, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+      }
+    } else if (showFrontier && D.frontier.has(i) && canGrow(i)) {
+      ctx.strokeStyle = 'rgba(244,234,214,0.34)';
+      ctx.setLineDash([3, 4]); ctx.lineWidth = 1.1;
+      ctx.strokeRect(x * CELL + 4, y * CELL + 4, CELL - 8, CELL - 8); ctx.setLineDash([]);
+    }
+  }
+
+  // Impulse zum Ursprung
+  for (let k = pulses.length - 1; k >= 0; k--) {
+    const p = pulses[k];
+    p.t += dt * 4.5;
+    while (p.t >= 1 && p.k < p.path.length - 1) { p.t -= 1; p.k++; }
+    if (p.k >= p.path.length - 1) { pulses.splice(k, 1); continue; }
+    const ch = p.path[p.k], pa = p.path[p.k + 1];
+    const q = quad(center(pa), ctrlPt(pa, ch), center(ch), 1 - p.t);
+    ctx.fillStyle = p.col; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(q[0], q[1], 1.8, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(q[0], q[1], 4.5, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Nebel
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(FC, 0, 0, N, N, 0, 0, N * CELL, N * CELL);
+
+  // Auswahl
+  if (sel >= 0) {
+    const x = sel % N, y = (sel / N) | 0;
+    ctx.strokeStyle = '#fff6e2'; ctx.lineWidth = 2;
+    ctx.strokeRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+  }
+
+  // Jahreszeit-Tönung
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = SEASONS[season()].tint; ctx.fillRect(0, 0, W, H);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+}
+
+// ---- Eingabe auf der Karte -------------------------------------------------
+const ptrs = new Map();
+let drag = null, pinch = null;
+function screenToCell(sx, sy) {
+  const wx = (sx - W / 2) / cam.z + cam.x, wy = (sy - H / 2) / cam.z + cam.y;
+  const x = Math.floor(wx / CELL), y = Math.floor(wy / CELL);
+  return x >= 0 && y >= 0 && x < N && y < N ? y * N + x : -1;
+}
+function clampCam() {
+  cam.z = clamp(cam.z, 0.45, 2.6);
+  cam.x = clamp(cam.x, 0, N * CELL); cam.y = clamp(cam.y, 0, N * CELL);
+}
+cv.addEventListener('pointerdown', e => {
+  audio();
+  const r = cv.getBoundingClientRect();
+  ptrs.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  if (ptrs.size === 1) { const p = ptrs.get(e.pointerId); drag = { sx: p.x, sy: p.y, cx: cam.x, cy: cam.y, moved: false }; pinch = null; }
+  else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.z }; drag = null;
+  }
+});
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const r = cv.getBoundingClientRect();
+  ptrs.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
+  if (pinch && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    cam.z = pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d; clampCam();
+  } else if (drag) {
+    const p = ptrs.get(e.pointerId), dx = p.x - drag.sx, dy = p.y - drag.sy;
+    if (Math.hypot(dx, dy) > 6) { drag.moved = true; cv.classList.add('drag'); }
+    if (drag.moved) { cam.x = drag.cx - dx / cam.z; cam.y = drag.cy - dy / cam.z; clampCam(); }
+  }
+});
+function ptrUp(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  const p = ptrs.get(e.pointerId);
+  ptrs.delete(e.pointerId);
+  cv.classList.remove('drag');
+  if (drag && !drag.moved && ptrs.size === 0) tapCell(screenToCell(p.x, p.y));
+  if (ptrs.size === 0) { drag = null; pinch = null; }
+}
+cv.addEventListener('pointerup', ptrUp);
+cv.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); drag = null; pinch = null; });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  const wx = (sx - W / 2) / cam.z + cam.x, wy = (sy - H / 2) / cam.z + cam.y;
+  cam.z *= Math.exp(-e.deltaY * 0.0015); clampCam();
+  cam.x = wx - (sx - W / 2) / cam.z; cam.y = wy - (sy - H / 2) / cam.z; clampCam();
+}, { passive: false });
+
+function tapCell(i) {
+  if (i < 0) { sel = -1; setTab('feld'); return; }
+  if (i === sel && canGrow(i)) { doGrow(i); return; }
+  sel = i;
+  setTab('feld');
+  if (panelEl.classList.contains('min')) panelEl.classList.remove('min');
+}
+function doGrow(i) {
+  if (!canGrow(i)) return;
+  if (!startGrow(i)) { sfx.no(); return; }
+  if (!hintsShown.grow) { hintsShown.grow = 1; }
+  buildPanel();
+}
+const hintsShown = {};
+
+// ---- Panel -----------------------------------------------------------------
+const panelEl = document.getElementById('panel'), bodyEl = document.getElementById('body'), tabsEl = document.getElementById('tabs'), hudEl = document.getElementById('hud');
+let tab = 'feld', updList = [], uidN = 0;
+function U(fn) { const id = 'u' + (uidN++); updList.push({ id, fn }); return id; }
+function costHtml(cost) {
+  return Object.keys(cost).filter(k => cost[k] > 0)
+    .map(k => `<span class="c-${k}${S.res[k] < cost[k] - 1e-9 ? ' no' : ''}">${fmt(cost[k])}</span>`).join('');
+}
+function costSpan(costFn) { return `<span class="cost" id="${U(el => { el.innerHTML = costHtml(costFn()); })}"></span>`; }
+function actBtn(label, act, arg, costFn, extraOk, cls = '') {
+  const id = U(el => { el.disabled = !(canAfford(costFn()) && (!extraOk || extraOk())); });
+  return `<button class="btn ${cls}" id="${id}" data-act="${act}" data-arg="${arg}"><span>${label}</span>${costSpan(costFn)}</button>`;
+}
+function setTab(t) { tab = t; buildPanel(); }
+function buildTabs() {
+  const tabs = [['feld', 'Feld'], ['evo', 'Evolution'], ['erfolge', 'Erfolge']];
+  if (S.up.frucht || S.meta.runs > 0) tabs.push(['sporen', 'Sporenflug']);
+  tabsEl.innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${k === 'erfolge' && D.newMile ? '<span class="badge"></span>' : ''}${k === 'evo' && D.newUp ? '<span class="badge"></span>' : ''}</button>`).join('');
+}
+function buildPanel() {
+  updList = [];
+  if (tab === 'erfolge') D.newMile = false;
+  if (tab === 'evo') D.newUp = false;
+  buildTabs();
+  let html = '';
+  if (tab === 'feld') html = sel >= 0 ? cellPanel(sel) : overviewPanel();
+  else if (tab === 'evo') html = evoPanel();
+  else if (tab === 'erfolge') html = milesPanel();
+  else html = sporenPanel();
+  bodyEl.innerHTML = html;
+  for (const u of updList) u.el = document.getElementById(u.id);
+  updList = updList.filter(u => u.el);
+  runUpd();
+}
+function runUpd() { for (const u of updList) u.fn(u.el); }
+
+function nextGoal() {
+  if (D.owned < 4) return 'Tippe ein gestricheltes Feld neben deinem Netz an und lass dein Myzel dorthin wachsen. Laub in der Nähe bringt dir Nährstoffe.';
+  if (!D.water) return 'Irgendwo in der Nähe glitzert eine Wasserader. Wachse dorthin.';
+  if (!D.trees.length) return 'Suche eine Baumwurzel. Bäume tauschen Wasser gegen Zucker, und mit Zucker entwickelst du dich weiter.';
+  if (!S.up.saeure) return 'Mit Zucker kannst du dich unter „Evolution“ weiterentwickeln. Säure öffnet dir den Weg durch Stein.';
+  if (!S.ever.M) return 'Knochen und Mineraladern liegen weiter draußen. Mineralien brauchst du für starke Bäume.';
+  if (!S.up.spitzen) return 'Wachstumsspitzen lassen dein Myzel von selbst wachsen, auch wenn du nicht hinschaust.';
+  if (!S.up.frucht) return 'Mit Fruchtkörpern bildest du Sporen. Die brauchst du für den Sporenflug und dauerhafte Boni.';
+  if (!D.fruits) return 'Wähle ein eigenes Erdfeld und lass einen Fruchtkörper wachsen.';
+  return 'Sammle Sporen. Wenn der Wald erschöpft ist, startet ein Sporenflug einen neuen Wald, und deine Boni bleiben.';
+}
+function overviewPanel() {
+  const se = season();
+  return `<div class="head"><h2>Dein Myzel</h2><p class="muted">Ziehen verschiebt die Karte, mit zwei Fingern oder dem Mausrad zoomst du. Ein zweiter Tipp auf ein ausgewähltes Feld lässt dein Myzel sofort dorthin wachsen.</p></div>
+  <div class="goal"><h3>als nächstes</h3><p>${nextGoal()}</p></div>
+  <div class="rows">
+    <span>Felder</span><span id="${U(el => el.textContent = D.owned + (D.growing.length ? ` (+${D.growing.length})` : ''))}"></span>
+    <span>Verbundene Bäume</span><span id="${U(el => el.textContent = D.trees.length)}"></span>
+    <span>Wasseradern</span><span id="${U(el => el.textContent = D.water)}"></span>
+    ${D.fruits ? `<span>Fruchtkörper</span><span>${D.fruits}</span>` : ''}
+    <span>Humus aus deinem Netz</span><span id="${U(el => el.innerHTML = `<span class="c-N">+${fmt(humus())}/s</span>`)}"></span>
+    <span>Nächstes Feld kostet</span><span id="${U(el => el.innerHTML = `<span class="c-N">${fmt(baseGrowCost())}</span>`)}"></span>
+  </div>
+  <div class="card"><div class="top"><b>${SEASONS[se].name}</b><span class="lvl" id="${U(el => el.textContent = 'noch ' + fmtTime(SEASON_LEN - (S.st % SEASON_LEN)))}"></span></div><p class="muted">${SEASONS[se].note}</p></div>
+  ${D.trees.length ? `<p class="muted" id="${U(el => { el.textContent = D.thirst < 0.99 ? `Deine Bäume haben Durst: Sie bekommen nur ${Math.round(D.thirst * 100)} % des Wassers, das sie brauchen. Verbinde mehr Wasseradern oder kauf Kapillaren.` : 'Deine Bäume haben genug Wasser.'; el.style.color = D.thirst < 0.99 ? 'var(--bad)' : ''; })}"></p>` : ''}
+  ${S.up.spitzen ? `<div class="switch"><span>Wachstumsspitzen (alle ${autoInt(S.up.spitzen)} s)</span><button class="btn" style="width:auto" data-act="auto"><span>${S.autoOn ? 'An' : 'Aus'}</span></button></div>` : ''}`;
+}
+function cellPanel(i) {
+  const t = S.type[i], info = TYPES[t], x = i % N, y = (i / N) | 0;
+  if (!S.rev[i]) return `<div class="head"><span class="tag">unerforscht</span><h2>Dunkle Erde</h2><p class="muted">Was hier liegt, spürst du erst, wenn dein Myzel näher wächst.</p></div><button class="btn" data-act="desel"><span>Zur Übersicht</span></button>`;
+  const own = S.own[i];
+  let tag = own === 1 ? '<span class="tag own">dein Netz</span>' : own === 2 ? '<span class="tag own">wächst</span>'
+    : D.frontier.has(i) ? '<span class="tag reach">erreichbar</span>' : '<span class="tag">außer Reichweite</span>';
+  if (i === C * N + C) tag = '<span class="tag own">Ursprung</span>';
+  let title = info.name;
+  if (t === T.BAUM) title += ` · Stufe ${S.lvl[i]}`;
+  let rows = '', act = '';
+  const m = mults();
+  if (info.finite) rows += `<span>Übrig</span><span id="${U(el => el.innerHTML = `<span class="c-${info.res}">${fmt(S.amt[i])} ${RES[info.res].name}</span>`)}"></span>`;
+  if (own === 1) {
+    if (t === T.LAUB || t === T.HOLZ || t === T.KNOCHEN)
+      rows += `<span>Ertrag</span><span id="${U(el => el.innerHTML = `<span class="c-${info.res}">+${fmt(info.rate * (t === T.KNOCHEN ? mults().M : mults().N) * D.boost[i])}/s</span>`)}"></span>`;
+    if (t === T.WASSER) rows += `<span>Ertrag</span><span class="c-W">+${fmt(info.rate * m.W)}/s</span>`;
+    if (t === T.MINERAL) rows += `<span>Ertrag</span><span class="c-M">+${fmt(info.rate * m.M)}/s</span>`;
+    if (t === T.BAUM) {
+      rows += `<span>Zucker</span><span id="${U(el => el.innerHTML = `<span class="c-Z">+${fmt(S.lvl[i] * 0.5 * mults().Z * D.thirst)}/s</span>`)}"></span>`;
+      rows += `<span>Wasserbedarf</span><span class="c-W">${fmt(S.lvl[i] * 0.8)}/s</span>`;
+      if (S.lvl[i] < 15) act += actBtn(`Baum stärken auf Stufe ${S.lvl[i] + 1}`, 'tree', i, () => treeCost(i), null, 'primary');
+    }
+    if (D.boost[i] > 1 && (t === T.LAUB || t === T.HOLZ || t === T.KNOCHEN)) rows += `<span>Zersetzerknoten</span><span>+${Math.round((D.boost[i] - 1) * 100)} %</span>`;
+    if (S.bld[i]) {
+      title = BLD[S.bld[i]].name;
+      rows += S.bld[i] === 2 ? `<span>Sporen</span><span class="c-S">+${fmt(10.8 * (1 + 0.5 * S.up.pilz))}/h</span>` : '';
+    }
+    if (t === T.ERDE && !S.bld[i] && i !== C * N + C) {
+      act += actBtn('Zersetzerknoten anlegen', 'bld', 1, () => bldCost(1));
+      act += `<p class="muted" style="font-size:13px">${BLD[1].desc}</p>`;
+      if (S.up.frucht) { act += actBtn('Fruchtkörper wachsen lassen', 'bld', 2, () => bldCost(2), null, 'primary'); act += `<p class="muted" style="font-size:13px">Bildet etwa 11 Sporen pro Stunde.</p>`; }
+    }
+  } else if (own === 2) {
+    rows += `<span>Wachstum</span><span id="${U(el => el.textContent = Math.floor(S.prog[i] * 100) + ' %')}"></span>`;
+  } else if (D.frontier.has(i)) {
+    if (t === T.STEIN && !S.up.saeure) act += `<p class="muted">Hier kommst du erst mit <b>Säure</b> weiter (Evolution).</p>`;
+    else { act += actBtn('Hierhin wachsen', 'grow', i, () => growCost(i), () => canGrow(i) && D.growing.length < maxPar(), 'primary');
+      act += `<p class="muted" style="font-size:13px" id="${U(el => el.textContent = D.growing.length >= maxPar() ? `Es wachsen schon ${D.growing.length} Fäden gleichzeitig. Warte kurz oder entwickle Schnelles Wachstum.` : '')}"></p>`; }
+    if (TYPES[t].res) {
+      const r = TYPES[t].res;
+      const preview = t === T.BAUM ? 'Gibt Zucker gegen Wasser' : `+${fmt((TYPES[t].rate || 0) * (r === 'N' ? m.N : r === 'W' ? m.W : m.M))} ${RES[r].name}/s`;
+      rows += `<span>Wenn verbunden</span><span class="c-${r}">${preview}</span>`;
+    }
+  }
+  const desc = S.bld[i] ? BLD[S.bld[i]].desc : i === C * N + C ? 'Hier hat alles begonnen. Alles, was dein Netz sammelt, fließt hierher.' : info.desc;
+  return `<div class="head">${tag}<h2>${title}</h2><p class="muted">${desc}</p></div>
+    ${rows ? `<div class="rows">${rows}</div>` : ''}
+    ${act ? `<div class="act">${act}</div>` : ''}
+    <button class="btn" data-act="desel"><span>Zur Übersicht</span></button>`;
+}
+function evoPanel() {
+  const vis = UPS.filter(u => u.vis());
+  const cards = vis.map(u => {
+    const l = S.up[u.id], maxed = l >= u.max;
+    return `<div class="card${maxed ? ' done' : ''}">
+      <div class="top"><b>${u.name}</b><span class="lvl">${u.max > 1 ? `${l} / ${u.max}` : maxed ? 'erforscht' : ''}</span></div>
+      <p class="muted">${u.desc(Math.min(l, u.max - 1))}</p>
+      ${maxed ? '' : actBtn(l ? 'Weiter entwickeln' : 'Entwickeln', 'up', u.id, () => u.cost(S.up[u.id]))}
+    </div>`;
+  }).join('');
+  const hidden = UPS.length - vis.length;
+  return `<div class="head"><h2>Evolution</h2><p class="muted">Dein Myzel lernt dazu. Neue Entwicklungen tauchen auf, sobald du neue Stoffe entdeckst.</p></div>
+    <div class="list">${cards}</div>
+    ${hidden ? `<p class="muted">${hidden} weitere Entwicklung${hidden > 1 ? 'en' : ''} noch verborgen.</p>` : ''}`;
+}
+function milesPanel() {
+  const done = MILES.filter(m => S.miles[m.id]).length;
+  return `<div class="head"><h2>Erfolge</h2><p class="muted">${done} von ${MILES.length} in diesem Wald. Nach einem Sporenflug kannst du sie neu verdienen.</p></div>
+  <div class="list">${MILES.map(ms => {
+    const d = S.miles[ms.id];
+    return `<div class="card${d ? ' done' : ''}"><div class="top"><b>${ms.name}</b><span class="lvl">${d ? 'geschafft' : ''}</span></div>
+      <p class="muted">${ms.desc} · Belohnung: ${rewardText(ms.reward)}</p>
+      ${d ? '' : `<div class="prog"><i id="${U(el => { const [v, g] = ms.goal(); el.style.width = clamp(v / g, 0, 1) * 100 + '%'; })}"></i></div>`}</div>`;
+  }).join('')}</div>`;
+}
+let confirmFlight = false, confirmReset = false;
+function sporenPanel() {
+  const meta = S.meta;
+  const erbCards = ERBS.map(e => {
+    const l = meta.erb[e.id] || 0, maxed = l >= e.max;
+    const id = U(el => { el.disabled = maxed || meta.pts < e.cost(l); });
+    return `<div class="card${maxed ? ' done' : ''}"><div class="top"><b>${e.name}</b><span class="lvl">${l} / ${e.max}</span></div>
+      <p class="muted">${e.desc(l)}</p>
+      ${maxed ? '' : `<button class="btn" id="${id}" data-act="erb" data-arg="${e.id}"><span>Erwerben</span><span class="cost"><span class="c-S">${e.cost(l)} Erbgut</span></span></button>`}</div>`;
+  }).join('');
+  return `<div class="head"><h2>Sporenflug</h2><p class="muted">Deine Fruchtkörper entlassen ihre Sporen in den Wind. Du beginnst in einem neuen Wald von vorn, aber dein Erbgut bleibt und macht dich dauerhaft stärker.</p></div>
+  <div class="rows">
+    <span>Gesammelte Sporen</span><span class="c-S" id="${U(el => el.textContent = fmt(S.res.S))}"></span>
+    <span>Erbgut aus Sporen (3 : 1)</span><span class="c-S" id="${U(el => el.textContent = '+' + Math.floor(S.res.S / 3))}"></span>
+    <span>Bonus für Netzgröße (je 25 Felder)</span><span class="c-S" id="${U(el => el.textContent = '+' + Math.floor(D.owned / 25))}"></span>
+    <span>Erbgut beim Sporenflug</span><span class="c-S" id="${U(el => el.textContent = sporeGain())}"></span>
+    <span>Bisherige Sporenflüge</span><span>${meta.runs}</span>
+  </div>
+  <button class="btn ${confirmFlight ? 'warn' : 'primary'}" data-act="flight" id="${U(el => { el.disabled = !D.fruits || sporeGain() < 1; })}"><span>${confirmFlight ? 'Wirklich? Dieser Wald wird zurückgesetzt.' : 'Sporenflug starten'}</span><span class="cost"><span class="c-S">+${sporeGain()} Erbgut</span></span></button>
+  ${!D.fruits ? '<p class="muted">Dafür brauchst du mindestens einen Fruchtkörper.</p>' : ''}
+  <div class="head"><h3>erbgut · ${meta.pts} verfügbar</h3></div>
+  <div class="list">${erbCards}</div>
+  <button class="btn warn" data-act="reset" style="margin-top:12px"><span>${confirmReset ? 'Wirklich alles löschen, auch das Erbgut?' : 'Spielstand komplett löschen'}</span></button>`;
+}
+
+bodyEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  audio();
+  const act = b.dataset.act, arg = b.dataset.arg;
+  if (act !== 'flight') confirmFlight = false;
+  if (act !== 'reset') confirmReset = false;
+  if (act === 'grow') doGrow(+arg);
+  else if (act === 'desel') { sel = -1; buildPanel(); }
+  else if (act === 'tree') {
+    const i = +arg, c = treeCost(i);
+    if (!canAfford(c)) return;
+    pay(c); S.lvl[i]++; D.maxTree = Math.max(D.maxTree, S.lvl[i]); sfx.buy(); buildPanel();
+  } else if (act === 'bld') {
+    const b2 = +arg, c = bldCost(b2);
+    if (!canAfford(c) || S.type[sel] !== T.ERDE || S.bld[sel] || S.own[sel] !== 1) return;
+    pay(c); S.bld[sel] = b2; rebuildAll(); sfx.buy(); buildPanel();
+  } else if (act === 'up') {
+    const u = UPS.find(x => x.id === arg), c = u.cost(S.up[u.id]);
+    if (!canAfford(c) || S.up[u.id] >= u.max) return;
+    pay(c); S.up[u.id]++; sfx.buy();
+    if (u.id === 'sinne') revealAll();
+    if (u.id === 'saeure') rebuildAll();
+    if (u.id === 'spitzen') S.autoT = Math.min(S.autoT, 2);
+    if (u.id === 'frucht') toast('<b>Fruchtkörper erforscht.</b> Wähle ein eigenes Erdfeld, um einen Pilz wachsen zu lassen.');
+    buildPanel();
+  } else if (act === 'auto') { S.autoOn = !S.autoOn; buildPanel(); }
+  else if (act === 'erb') {
+    const e2 = ERBS.find(x => x.id === arg), l = S.meta.erb[arg] || 0;
+    if (l >= e2.max || S.meta.pts < e2.cost(l)) return;
+    S.meta.pts -= e2.cost(l); S.meta.erb[arg] = l + 1; sfx.buy(); buildPanel();
+  } else if (act === 'flight') {
+    if (!confirmFlight) { confirmFlight = true; buildPanel(); return; }
+    confirmFlight = false;
+    const g = sporeGain(), meta = S.meta;
+    meta.pts += g; meta.runs++; meta.best = Math.max(meta.best, D.owned);
+    startRun(meta); sel = -1; tab = 'sporen';
+    drawAllTerrain(); centerCam(); save(); buildPanel(); sfx.chime();
+    toast(`<b>Sporenflug!</b> +${g} Erbgut. Ein neuer Wald wartet.`);
+  } else if (act === 'reset') {
+    if (!confirmReset) { confirmReset = true; buildPanel(); return; }
+    confirmReset = false;
+    store.del(SAVE_KEY); startRun(null); sel = -1; tab = 'feld'; drawAllTerrain(); centerCam(); save(); buildPanel();
+  }
+});
+tabsEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  if (window.matchMedia('(max-width: 820px)').matches && b.dataset.tab === tab) { panelEl.classList.toggle('min'); return; }
+  panelEl.classList.remove('min');
+  confirmFlight = false; confirmReset = false;
+  setTab(b.dataset.tab);
+});
+document.getElementById('modal').addEventListener('click', e => { if (e.target.closest('[data-act="closeModal"]') || e.target.id === 'modal') closeModal(); });
+function openModal(html) { document.getElementById('modalBox').innerHTML = html; document.getElementById('modal').hidden = false; }
+function closeModal() { document.getElementById('modal').hidden = true; }
+
+function toast(html) {
+  const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = html;
+  const box = document.getElementById('toasts'); box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), 5200);
+}
+
+function buildHud() {
+  hudEl.innerHTML = ['N', 'W', 'Z', 'M', 'S'].map(k =>
+    `<span class="chip" id="chip${k}" title="${RES[k].name}"><span class="dot" style="background:${RES_COL[k]}"></span><b id="v${k}"></b><small id="r${k}"></small></span>`).join('')
+    + `<span class="chip season" title="Jahreszeit"><b id="seasonName"></b><span class="bar"><i id="seasonBar"></i></span></span><span class="sp"></span>`
+    + `<button class="iconbtn" id="bMute" aria-label="Ton an oder aus">${muted ? '🔇' : '🔊'}</button>`;
+  document.getElementById('bMute').onclick = () => { muted = !muted; store.set('myzel.muted', muted ? '1' : '0'); document.getElementById('bMute').textContent = muted ? '🔇' : '🔊'; audio(); };
+}
+function updHud() {
+  for (const k of ['N', 'W', 'Z', 'M', 'S']) {
+    const chip = document.getElementById('chip' + k);
+    chip.hidden = !(S.ever[k] > 0 || k === 'N');
+    document.getElementById('v' + k).textContent = fmt(S.res[k]);
+    const r = D.rates[k];
+    document.getElementById('r' + k).textContent = Math.abs(r) >= 0.05 ? (r > 0 ? '+' : '') + fmt(r) + '/s' : '';
+  }
+  document.getElementById('seasonName').textContent = SEASONS[season()].name;
+  document.getElementById('seasonBar').style.width = (S.st % SEASON_LEN) / SEASON_LEN * 100 + '%';
+  const anyUp = UPS.some(u => u.vis() && S.up[u.id] < u.max && canAfford(u.cost(S.up[u.id])));
+  if (anyUp !== D.newUp && tab !== 'evo') { D.newUp = anyUp; buildTabs(); }
+}
+function centerCam() {
+  cam.x = (C + 0.5) * CELL; cam.y = (C + 0.5) * CELL;
+  cam.z = clamp(Math.min(W, H) / (CELL * 9), 0.9, 1.6);
+}
+
+// ---- Hauptschleife ---------------------------------------------------------
+let last = performance.now(), uiT = 0, saveT = 0;
+function frame(ts) {
+  requestAnimationFrame(frame);
+  let dt = (ts - last) / 1000; last = ts;
+  if (dt > 2) { catchUp(dt, dt > 60); buildPanel(); dt = 0; }
+  dt = Math.min(dt, 0.1);
+  if (dt > 0) tick(dt);
+  // Impulse spawnen
+  for (const i of D.prodList) {
+    const t = S.type[i], res = S.bld[i] === 2 ? 'S' : TYPES[t].res;
+    if (res && Math.random() < dt * 0.5) spawnPulse(i, res);
+  }
+  for (const i of D.trees) if (Math.random() < dt * 0.4 * D.thirst) spawnPulse(i, 'Z');
+  render(dt, ts / 1000);
+  uiT -= dt; saveT -= dt;
+  if (uiT <= 0) { uiT = 0.25; updHud(); runUpd(); if (D.panelStale) { D.panelStale = false; buildPanel(); } }
+  if (saveT <= 0) { saveT = 5; save(); }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else last = performance.now() - Math.min(Date.now() - S.t, 1e9); });
+addEventListener('pagehide', save);
+
+// ---- Start -----------------------------------------------------------------
+resize();
+const loaded = load();
+if (!loaded) startRun(null);
+drawAllTerrain();
+centerCam();
+buildHud();
+if (loaded) catchUp((Date.now() - S.t) / 1000, true);
+else toast('<b>Ein Sporenkorn keimt.</b> Tippe ein gestricheltes Feld an, um zu wachsen.');
+buildPanel();
+updHud();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

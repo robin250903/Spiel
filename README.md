@@ -1,5 +1,19 @@
 # Spiele
 
+## Myzel
+
+Ein Aufbauspiel unter dem Waldboden: Du bist ein Pilzgeflecht und wächst Feld für Feld durch die Erde.
+
+- Zersetze Laub, Totholz und Knochen zu Nährstoffen und Mineralien. Jedes eigene Feld liefert außerdem etwas Humus.
+- Verbinde Wasseradern und Baumwurzeln: Bäume tauschen Wasser gegen Zucker. Mit Nährstoffen, Wasser und Mineralien machst du sie stärker.
+- Unter „Evolution“ entwickelst du dich weiter: Enzyme, Säure gegen Stein, Wachstumsspitzen (wachsen von selbst), Fruchtkörper und mehr
+- Vier Jahreszeiten mit eigenen Effekten, im Herbst fällt frisches Laub
+- 14 Erfolge pro Wald
+- Sporenflug: neuer Wald, Erbgut bleibt und gibt dauerhafte Boni
+- Läuft weiter, während das Spiel zu ist (anfangs bis 2 Stunden, mit Winterruhe bis 12 Stunden). Der Spielstand liegt im Browser.
+
+Spielen: `myzel.html` im Browser öffnen.
+
 ## Echolot
 
 Ein U-Boot in einer stockdunklen Höhle. Sehen kannst du nur, was dein Sonar trifft: Die Wände leuchten kurz auf und verblassen wieder.
