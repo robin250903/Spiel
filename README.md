@@ -1,5 +1,19 @@
 # Spiele
 
+## Babyzeit
+
+Ein Baby-Pflegespiel für Kinder, gemacht fürs iPad und Handy (läuft im Browser, auch in Safari):
+
+- 4 Babys zur Auswahl: Mia, Amara, Lotta und Ben. Jedes hat eigene Kleidung, eigene Bedürfnisse und mag ein Essen nicht.
+- **Baden:** mit dem Schwamm den Schmutz wegschrubben, Schaum abduschen, mit dem Handtuch trocken rubbeln. Die Quietsche-Ente quietscht.
+- **Essen:** Brei, Milch, Obst und Gemüse zum Mund ziehen. Mit der Serviette danach das Gesicht sauber wischen.
+- **Anziehen:** Oberteile, Hosen, Röcke, Latzhosen, Kleider, Strampler, Schuhe, Mützen, Schleifen, Brillen, Frisuren und Haarfarben. Mit 📷 kommt ein Foto ins Fotoalbum.
+- **Schlafen:** Licht aus, Spieluhr an (Wiegenlied), Bett schaukeln, bis das Baby schläft.
+- Im Kinderzimmer kann man das Baby kitzeln. Die Balken zeigen, was es gerade braucht. Für jede erledigte Aufgabe gibt es einen Stern.
+- Der Spielstand bleibt im Browser gespeichert.
+
+Spielen: `babyzeit.html` im Browser öffnen. Tipp fürs iPad: in Safari „Teilen“ → „Zum Home-Bildschirm“, dann startet es wie eine App.
+
 ## Myzel
 
 Ein Aufbauspiel unter dem Waldboden: Du bist ein Pilzgeflecht und wächst Feld für Feld durch die Erde.

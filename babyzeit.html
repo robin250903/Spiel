@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Babyzeit">
+<meta name="theme-color" content="#ff7aae">
+<title>Babyzeit</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #ffe9f1; color: #5a3550;
+  font-family: "Chalkboard SE", "Comic Sans MS", "Trebuchet MS", system-ui, sans-serif; }
+button { font-family: inherit; color: inherit; cursor: pointer; }
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top));
+  padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right));
+  background: linear-gradient(#ff9cc6, #ff74ac); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.08); z-index: 10; }
+.rb { width: 50px; height: 50px; flex: none; border-radius: 50%; border: none; background: rgba(255,255,255,.32); font-size: 26px; display: flex; align-items: center; justify-content: center; }
+.rb:active { transform: scale(.92); }
+#title { flex: 1; text-align: center; font-size: 26px; font-weight: bold; text-shadow: 0 2px 0 rgba(0,0,0,.15); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#stars { flex: none; background: rgba(255,255,255,.32); padding: 6px 14px; border-radius: 24px; font-size: 22px; font-weight: bold; }
+#stars.bump { animation: bump .5s; }
+#scene { flex: 1; position: relative; overflow: hidden; }
+.stage { position: absolute; inset: 0; }
+.hidden { display: none !important; }
+
+/* Szenen-Grundgerüst: Baby in der Mitte, Werkzeuge rechts (quer) oder unten (hoch) */
+.scn { display: flex; flex-direction: row; }
+.scn .main { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; touch-action: none; }
+.scn .tray { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 12px;
+  padding-right: max(12px, env(safe-area-inset-right)); background: rgba(255,255,255,.55); overflow: auto; }
+@media (orientation: portrait) {
+  .scn { flex-direction: column; }
+  .scn .tray { flex-direction: row; flex-wrap: wrap; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+.babyBox { position: relative; height: 92%; aspect-ratio: 3 / 5; max-width: 96%; }
+.babyBox > svg.baby { position: relative; z-index: 2; width: 100%; height: 100%; display: block; overflow: visible; }
+svg.baby .blink { animation: blink 4.5s infinite; transform-origin: 150px 140px; }
+.sway > svg.baby { animation: sway 3.5s ease-in-out infinite; transform-origin: 50% 95%; }
+.shake > svg.baby { animation: shake .45s; }
+.wiggle > svg.baby { animation: wiggle .5s; }
+
+.tool { width: clamp(64px, 12vmin, 104px); height: clamp(64px, 12vmin, 104px); flex: none; border-radius: 24px; background: #fff; border: 4px solid #fff;
+  box-shadow: 0 5px 0 rgba(0,0,0,.12); font-size: clamp(38px, 7.5vmin, 62px); display: flex; align-items: center; justify-content: center; touch-action: none; position: relative; }
+.tool svg { width: 72%; height: 72%; }
+.tool.locked { opacity: .35; filter: grayscale(.7); }
+.tool.next { animation: pulse 1s infinite; border-color: #ffd34d; }
+.tool.dragging { opacity: .3; }
+.ghost { position: fixed; z-index: 50; pointer-events: none; transform: translate(-50%, -50%) scale(1.15); font-size: clamp(50px, 10vmin, 84px);
+  filter: drop-shadow(0 6px 6px rgba(0,0,0,.25)); width: clamp(70px, 13vmin, 110px); height: clamp(70px, 13vmin, 110px); display: flex; align-items: center; justify-content: center; }
+.ghost svg { width: 100%; height: 100%; }
+.ghost.gone { transition: opacity .2s, transform .2s; opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+
+.bubble { position: absolute; left: 66%; top: 0; z-index: 6; background: #fff; border-radius: 22px; padding: 6px 16px; font-size: clamp(20px, 4vmin, 34px);
+  font-weight: bold; box-shadow: 0 3px 0 rgba(0,0,0,.1); animation: popIn .3s; white-space: nowrap; pointer-events: none; }
+.bubble::after { content: ""; position: absolute; left: 14px; bottom: -10px; border: 10px solid transparent; border-top-color: #fff; border-bottom: 0; }
+.float { position: fixed; z-index: 40; pointer-events: none; font-size: 34px; animation: floatUp 1.3s forwards; }
+.spray { position: fixed; z-index: 40; pointer-events: none; width: 7px; height: 14px; border-radius: 50%; background: #4aa8e8; animation: fall .55s linear forwards; }
+.bar { display: block; width: 80%; height: 12px; border-radius: 6px; background: rgba(0,0,0,.08); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 50%; border-radius: 6px; background: linear-gradient(90deg, #ff7aa8, #ffb86b); transition: width .4s; }
+
+/* Belohnung */
+.reward { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.reward .big { font-size: 150px; animation: starIn 1.9s forwards; }
+.reward .msg { font-size: clamp(28px, 6vmin, 46px); font-weight: bold; color: #fff; background: #ff6fa8; padding: 8px 26px; border-radius: 34px;
+  box-shadow: 0 5px 0 rgba(0,0,0,.15); animation: popIn .4s, fadeOut .4s 1.6s forwards; }
+.conf { position: fixed; top: -20px; width: 12px; height: 16px; z-index: 59; pointer-events: none; animation: confFall 1.9s linear forwards; border-radius: 3px; }
+.flash { position: fixed; inset: 0; background: #fff; z-index: 70; pointer-events: none; animation: fadeOut .5s forwards; }
+.toast { position: fixed; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 65; background: #fff; padding: 10px 22px; border-radius: 24px;
+  font-size: 22px; font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,.12); animation: popIn .3s, fadeOut .4s 1.5s forwards; pointer-events: none; white-space: nowrap; }
+
+/* Hintergründe */
+.room { background: radial-gradient(circle at 20px 20px, rgba(255,255,255,.7) 5px, transparent 6px) 0 0 / 46px 46px,
+  linear-gradient(transparent 76%, #e8b98a 76%, #d9a272 100%), #ffd6e7; }
+.bathroom { background: linear-gradient(transparent 80%, #9fc9de 80%),
+  repeating-linear-gradient(0deg, transparent 0 46px, rgba(255,255,255,.8) 46px 49px),
+  repeating-linear-gradient(90deg, transparent 0 46px, rgba(255,255,255,.8) 46px 49px), #bfe6f5; }
+.kitchen { background: linear-gradient(transparent 78%, #fff 78%),
+  repeating-conic-gradient(#ffe7a6 0 25%, #fff6d6 0 50%) 0 0 / 60px 60px; }
+.kitchen::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
+  background: repeating-conic-gradient(#f1a7b9 0 25%, #fff 0 50%) 0 0 / 50px 50px; }
+.dressroom { background: radial-gradient(circle, rgba(255,255,255,.6) 3px, transparent 4px) 0 0 / 34px 34px, linear-gradient(#e6d6ff, #f6d9f3); }
+.nursery { background: radial-gradient(circle at 30% 40%, rgba(255,255,255,.5) 2px, transparent 3px) 0 0 / 60px 60px,
+  linear-gradient(transparent 80%, #c9b8e6 80%), #bcd6f7; }
+
+/* Startseite / Babywahl */
+.chooser { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vmin; padding: 12px; }
+.chooser h1 { margin: 0; font-size: clamp(30px, 7vmin, 56px); color: #ff5f9f; text-shadow: 0 3px 0 #fff; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.5vmin; width: min(96vw, 150vmin); }
+@media (orientation: portrait) { .cards { grid-template-columns: repeat(2, 1fr); width: min(94vw, 70vh); } }
+.card { background: #fff; border: none; border-radius: 28px; padding: 10px 10px 6px; box-shadow: 0 6px 0 #f6b6d1; display: flex; flex-direction: column; align-items: center; }
+.card:active { transform: translateY(3px); box-shadow: 0 3px 0 #f6b6d1; }
+.card svg { width: 100%; aspect-ratio: 28 / 30; }
+.card b { font-size: clamp(22px, 4.5vmin, 34px); }
+
+/* Kinderzimmer */
+.hub .tray { display: grid; grid-template-columns: repeat(2, auto); align-content: center; gap: 14px; background: transparent; }
+@media (orientation: portrait) { .hub .tray { grid-template-columns: repeat(4, 1fr); width: 100%; } }
+.act { width: clamp(96px, 19vmin, 168px); aspect-ratio: 1; border-radius: 28px; border: none; background: #fff; box-shadow: 0 6px 0 #f3b0cd;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
+@media (orientation: portrait) { .act { width: 100%; } }
+.act:active { transform: translateY(3px); box-shadow: 0 3px 0 #f3b0cd; }
+.act .ic { font-size: clamp(36px, 8vmin, 66px); line-height: 1; }
+.act .lb { font-size: clamp(14px, 2.8vmin, 22px); font-weight: bold; }
+.act.low { animation: pulse 1.1s infinite; }
+.corner { position: absolute; left: 12px; top: 12px; z-index: 5; width: 62px; height: 62px; border-radius: 20px; border: none; background: #fff;
+  box-shadow: 0 4px 0 rgba(0,0,0,.12); font-size: 32px; }
+.laune { position: absolute; left: 50%; bottom: 2%; transform: translateX(-50%); z-index: 5; background: rgba(255,255,255,.85); border-radius: 20px;
+  padding: 6px 12px; display: flex; align-items: center; gap: 8px; width: min(60%, 260px); font-size: 24px; }
+.laune .bar { flex: 1; }
+.think { position: absolute; right: -14%; top: -2%; z-index: 6; width: 30%; aspect-ratio: 1; background: #fff; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: clamp(26px, 6vmin, 50px); box-shadow: 0 4px 0 rgba(0,0,0,.08); animation: bob 2s ease-in-out infinite; }
+.think::after { content: ""; position: absolute; left: 4%; bottom: -8%; width: 22%; aspect-ratio: 1; background: #fff; border-radius: 50%; }
+
+/* Bad */
+.tub { position: absolute; z-index: 3; left: -36%; width: 172%; top: 56%; pointer-events: none; }
+.duck { position: absolute; z-index: 4; left: 74%; top: 58%; font-size: clamp(34px, 7vmin, 60px); touch-action: none; }
+.duck.squeak { animation: wiggle .5s; }
+.steps { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 8px; background: rgba(255,255,255,.75); padding: 6px 12px; border-radius: 20px; font-size: 26px; }
+.steps span { opacity: .35; }
+.steps span.on { opacity: 1; }
+.steps span.done { opacity: 1; filter: grayscale(1) brightness(1.2); }
+
+/* Essen */
+.chair { position: absolute; z-index: 1; left: -6%; width: 112%; top: 22%; height: 46%; border-radius: 50% 50% 18px 18px / 30% 30% 18px 18px;
+  background: repeating-linear-gradient(90deg, #ff9ac1 0 18px, #ffb3d0 18px 36px); border: 6px solid #fff; }
+.hcTray { position: absolute; z-index: 3; left: -30%; width: 160%; top: 60%; height: 10%; border-radius: 30px; background: #fff; border-bottom: 10px solid #ff8fbf; box-shadow: 0 6px 0 rgba(0,0,0,.08); }
+.hcLegs { position: absolute; z-index: 3; left: 4%; width: 92%; top: 68%; height: 32%; border-radius: 0 0 40px 40px; border: 6px solid #fff; border-top: 0;
+  background: repeating-linear-gradient(90deg, #ff9ac1 0 18px, #ffb3d0 18px 36px); }
+.foodTray { display: grid !important; grid-template-columns: repeat(2, auto); align-content: center; }
+@media (orientation: portrait) { .foodTray { grid-template-columns: repeat(5, auto); justify-content: center; } }
+@media (orientation: portrait) and (max-width: 500px) { .tab { width: 44px; height: 44px; font-size: 24px; } }
+.meter { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px; width: min(70%, 320px);
+  background: rgba(255,255,255,.85); padding: 6px 12px; border-radius: 20px; font-size: 26px; }
+.meter .bar { flex: 1; }
+
+/* Anziehen */
+.dressroom { display: flex; flex-direction: row; }
+.panel { width: clamp(230px, 36vw, 400px); flex: none; display: flex; flex-direction: column; background: rgba(255,255,255,.65); min-height: 0;
+  padding-left: env(safe-area-inset-left); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; justify-content: center; }
+.tab { width: 54px; height: 54px; border-radius: 16px; border: none; background: #fff; font-size: 30px; box-shadow: 0 3px 0 rgba(0,0,0,.1); }
+.tab.on { background: #ff9cc6; }
+.grid { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px; padding: 10px; align-content: start; }
+.item { aspect-ratio: 1; background: #fff; border-radius: 18px; border: 4px solid transparent; display: flex; align-items: center; justify-content: center;
+  padding: 4px; box-shadow: 0 3px 0 rgba(0,0,0,.08); font-size: 34px; }
+.item.on { border-color: #ff6fa8; }
+.item svg { width: 100%; height: 100%; }
+.item .sw { width: 70%; height: 70%; border-radius: 50%; border: 3px solid rgba(0,0,0,.12); }
+.cam { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: 76px; height: 76px; border-radius: 50%; border: none; background: #fff;
+  box-shadow: 0 5px 0 rgba(0,0,0,.15); font-size: 40px; }
+@media (orientation: portrait) {
+  .dressroom { flex-direction: column-reverse; }
+  .panel { width: auto; height: 40%; padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Album */
+.album { overflow-y: auto; touch-action: pan-y; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; align-content: start; background: #fff3d6; }
+.photo { position: relative; background: #fff; padding: 8px 8px 30px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,.12); }
+.photo:nth-child(odd) { transform: rotate(-2deg); } .photo:nth-child(even) { transform: rotate(2deg); }
+.photo .pic { background: linear-gradient(#e6d6ff, #f6d9f3); aspect-ratio: 3 / 4; display: flex; justify-content: center; border-radius: 4px; overflow: hidden; }
+.photo svg { height: 100%; }
+.photo b { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 20px; }
+.photo .del { position: absolute; right: -8px; top: -8px; width: 34px; height: 34px; border-radius: 50%; border: none; background: #ff6f8f; color: #fff; font-size: 18px; }
+.empty { grid-column: 1 / -1; text-align: center; font-size: 26px; padding: 40px 10px; }
+
+/* Schlafen */
+.cribWrap { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); width: min(92vw, calc((100vh - 70px) * .85)); z-index: 1; }
+.crib { width: 100%; touch-action: none; transform-origin: 50% 100%; }
+.crib svg { width: 100%; display: block; }
+.crib.rock { animation: rock 1.4s ease-in-out infinite; }
+.mobile { position: absolute; left: 50%; bottom: 74%; transform: translateX(-50%); width: 42%; z-index: 4; touch-action: none; }
+.mobile svg { width: 100%; display: block; transform-origin: 50% 0; }
+.mobile.spin svg { animation: swing 2.2s ease-in-out infinite; }
+.night { position: absolute; inset: 0; background: #0b1440; opacity: 0; pointer-events: none; transition: opacity 1s; z-index: 2; }
+.dark .night { opacity: .58; }
+.window { position: absolute; right: 6%; top: 6%; width: 20vmin; height: 24vmin; border: 8px solid #fff; border-radius: 50% 50% 8px 8px / 30% 30% 8px 8px;
+  background: linear-gradient(#1d2b6b, #4a5bb0); z-index: 3; overflow: hidden; font-size: 4vmin; }
+.window span { position: absolute; }
+.lamp { position: absolute; left: 5%; top: 4%; z-index: 4; width: 120px; height: 144px; border: none; background: none; padding: 0; }
+.lamp svg { width: 100%; height: 100%; }
+.lamp.next { animation: pulse 1s infinite; }
+.sleepMeter { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px; width: min(46%, 300px);
+  background: rgba(255,255,255,.85); padding: 6px 12px; border-radius: 20px; font-size: 26px; }
+.sleepMeter .bar { flex: 1; }
+.sleepMeter .bar i { background: linear-gradient(90deg, #9b7be8, #5bb8f0); }
+.zz { position: absolute; z-index: 5; font-size: 40px; font-weight: bold; color: #fff; text-shadow: 0 2px 4px #335; pointer-events: none; animation: zzUp 2.4s forwards; }
+.wake { position: absolute; right: 16px; bottom: 16px; z-index: 6; width: 84px; height: 84px; border-radius: 50%; border: none; background: #ffd34d; font-size: 46px; box-shadow: 0 5px 0 rgba(0,0,0,.2); animation: pulse 1.4s infinite; }
+
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
+@keyframes sway { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-8px); } 80% { transform: translateX(8px); } }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg) scale(1.05); } 75% { transform: rotate(8deg) scale(1.05); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes bump { 50% { transform: scale(1.3); } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes popIn { from { transform: scale(.3); opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes floatUp { to { transform: translateY(-120px) scale(1.4); opacity: 0; } }
+@keyframes fall { to { transform: translateY(90px); opacity: 0; } }
+@keyframes starIn { 0% { transform: scale(0) rotate(-180deg); } 30% { transform: scale(1.2) rotate(0); } 75% { transform: scale(1); opacity: 1; } 100% { transform: scale(.4) translateY(-60vh); opacity: 0; } }
+@keyframes confFall { to { transform: translateY(105vh) rotate(720deg); } }
+@keyframes rock { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+@keyframes swing { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes zzUp { from { opacity: 0; transform: translate(0,0) scale(.6); } 20% { opacity: 1; } to { opacity: 0; transform: translate(60px,-110px) scale(1.3); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <button class="rb" id="homeBtn" aria-label="Zurück">🏠</button>
+    <div id="title">Babyzeit</div>
+    <div id="stars">⭐ 0</div>
+    <button class="rb" id="soundBtn" aria-label="Ton">🔊</button>
+  </header>
+  <main id="scene"></main>
+</div>
+<script>
+'use strict';
+// ================= Hilfsfunktionen =================
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const thr = (fn, ms) => { let t = 0; return (...a) => { const n = performance.now(); if (n - t > ms) { t = n; fn(...a); } }; };
+let UID = 0;
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = x => Math.round(clamp(amt < 0 ? x * (1 + amt) : x + (255 - x) * amt, 0, 255));
+  return '#' + [n >> 16 & 255, n >> 8 & 255, n & 255].map(f).map(v => v.toString(16).padStart(2, '0')).join('');
+}
+const isLight = hex => { const n = parseInt(hex.slice(1), 16); return ((n >> 16 & 255) * .3 + (n >> 8 & 255) * .59 + (n & 255) * .11) > 200; };
+function svgEl(tag, attrs) { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function toSvg(svg, x, y) { const m = svg.getScreenCTM(); if (!m) return null; return new DOMPoint(x, y).matrixTransform(m.inverse()); }
+function toScreen(svg, x, y) { const m = svg.getScreenCTM(); return new DOMPoint(x, y).matrixTransform(m); }
+const heart = (cx, cy, s) => `M${cx},${cy + s * .9} C${cx - s * 1.7},${cy - s * .2} ${cx - s * .6},${cy - s * 1.4} ${cx},${cy - s * .45} C${cx + s * .6},${cy - s * 1.4} ${cx + s * 1.7},${cy - s * .2} ${cx},${cy + s * .9}Z`;
+function star(cx, cy, R, r, n = 5) { let d = ''; for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, q = i % 2 ? r : R; d += (i ? 'L' : 'M') + (cx + Math.cos(a) * q).toFixed(1) + ',' + (cy + Math.sin(a) * q).toFixed(1); } return d + 'Z'; }
+function flower(cx, cy, r, c) {
+  let s = ''; for (let i = 0; i < 5; i++) { const a = i * Math.PI * 2 / 5 - Math.PI / 2; s += `<circle cx="${(cx + Math.cos(a) * r).toFixed(1)}" cy="${(cy + Math.sin(a) * r).toFixed(1)}" r="${r * .75}" fill="${c}"/>`; }
+  return s + `<circle cx="${cx}" cy="${cy}" r="${r * .6}" fill="${c === '#ffd34d' ? '#ff9a3c' : '#ffd34d'}"/>`;
+}
+
+// ================= Ton (WebAudio, alles synthetisch) =================
+let AC = null;
+function ac() {
+  if (!S.sound) return null;
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) { return null; }
+  return AC;
+}
+function tone(f, t0, dur, type = 'sine', vol = .15, f2) {
+  const a = ac(); if (!a) return;
+  const t = a.currentTime + t0, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .015); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .05);
+}
+let NB = null;
+function noise(t0, dur, vol, freq, q = 1) {
+  const a = ac(); if (!a) return;
+  if (!NB) { NB = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = NB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const t = a.currentTime + t0, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = NB; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f).connect(g).connect(a.destination); s.start(t, Math.random() * .5); s.stop(t + dur + .05);
+}
+const snd = {
+  pop: () => tone(rnd(500, 800), 0, .08, 'sine', .12, 1400),
+  splash: () => { noise(0, .3, .25, 1800, .7); noise(.05, .2, .12, 900); },
+  chime: () => [880, 1109, 1319, 1760].forEach((f, i) => tone(f, i * .09, .5, 'triangle', .12)),
+  giggle: () => { for (let i = 0; i < 5; i++) tone(rnd(650, 850), i * .09, .08, 'triangle', .09, rnd(900, 1100)); },
+  munch: () => noise(0, .07, .2, 500, 2),
+  yuck: () => { tone(260, 0, .4, 'sawtooth', .05, 140); tone(270, 0, .4, 'square', .03, 150); },
+  squeak: () => { tone(1300, 0, .12, 'square', .05, 1900); tone(1500, .14, .12, 'square', .05, 2100); },
+  camera: () => { noise(0, .05, .4, 3000, .5); noise(.07, .08, .3, 2000, .5); },
+  click: () => tone(1200, 0, .04, 'square', .05),
+  swoosh: () => noise(0, .2, .12, 700, .6),
+  gulp: () => tone(300, 0, .12, 'sine', .15, 160),
+  yawn: () => { tone(500, 0, .8, 'triangle', .06, 250); },
+  wow: () => { tone(500, 0, .25, 'triangle', .08, 900); },
+};
+// Wiegenlied (Melodie von Brahms, gemeinfrei) als Spieluhr
+const NOTE = { D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25 };
+const MEL = [['E4', .5], ['E4', .5], ['G4', 2], ['E4', .5], ['E4', .5], ['G4', 2], ['E4', .5], ['G4', .5], ['C5', 1], ['B4', 1.5], ['A4', .5], ['A4', 1], ['G4', 1],
+  ['D4', .5], ['E4', .5], ['F4', 1], ['D4', 1], ['D4', .5], ['E4', .5], ['F4', 2], ['D4', .5], ['F4', .5], ['B4', .5], ['A4', .5], ['G4', 1], ['B4', 1], ['C5', 2.5]];
+let lull = null;
+function playLullaby() {
+  stopLullaby();
+  const beat = .45, a = ac(), nodes = [];
+  let t = 0;
+  for (const [n, d] of MEL) {
+    if (a) {
+      const f = NOTE[n], at = a.currentTime + .05 + t;
+      [[1, 'triangle', .1], [2, 'sine', .03], [4, 'sine', .012]].forEach(([m, type, v]) => {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = type; o.frequency.value = f * m;
+        g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(v, at + .015); g.gain.exponentialRampToValueAtTime(.0001, at + d * beat + .8);
+        o.connect(g).connect(a.destination); o.start(at); o.stop(at + d * beat + .9); nodes.push(o);
+      });
+    }
+    t += d * beat;
+  }
+  lull = { end: performance.now() + t * 1000 + 600, nodes };
+}
+function stopLullaby() { if (lull) { lull.nodes.forEach(o => { try { o.stop(); } catch (e) {} }); lull = null; } }
+const lullabyPlaying = () => !!lull && performance.now() < lull.end;
+
+// ================= Spielstand =================
+const BABIES = [
+  { name: 'Mia', skin: '#ffe0cc', eyes: '#3d8bd9', hair: 'locken', hairColor: '#f6d365', dislike: 'brokkoli',
+    outfit: { top: -1, bottom: -1, dress: 0, shoes: 0, head: 0, glasses: -1 } },
+  { name: 'Amara', skin: '#8d5a3b', eyes: '#5a3a22', hair: 'puffs', hairColor: '#2b1a12', dislike: 'karotte',
+    outfit: { top: 1, bottom: 4, dress: -1, shoes: 1, head: -1, glasses: -1 } },
+  { name: 'Lotta', skin: '#fbd3b8', eyes: '#3fa56b', hair: 'zoepfe', hairColor: '#d9652b', dislike: 'apfel',
+    outfit: { top: 3, bottom: 2, dress: -1, shoes: 4, head: -1, glasses: -1 } },
+  { name: 'Ben', skin: '#d9a273', eyes: '#6b4426', hair: 'kurz', hairColor: '#6b4022', dislike: 'erdbeere',
+    outfit: { top: 0, bottom: 0, dress: -1, shoes: 2, head: 7, glasses: -1 } },
+];
+const SAVE_KEY = 'babyzeit-v1';
+function freshState() {
+  return { cur: 0, chosen: false, stars: 0, sound: true, t: Date.now(), album: [],
+    babies: BABIES.map(b => ({ hair: b.hair, hairColor: b.hairColor, outfit: { ...b.outfit }, needs: { satt: 55, sauber: 45, ruhe: 70, laune: 65 } })) };
+}
+let S;
+try { S = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { S = null; }
+if (!S || !S.babies || S.babies.length !== BABIES.length) S = freshState();
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+const baby = (i = S.cur) => ({ ...BABIES[i], hair: S.babies[i].hair, hairColor: S.babies[i].hairColor });
+const bst = () => S.babies[S.cur];
+function decay() {
+  const now = Date.now(), m = clamp((now - S.t) / 60000, 0, 600);
+  S.t = now;
+  const rate = { satt: .5, sauber: .3, ruhe: .25, laune: .4 };
+  for (const b of S.babies) for (const k in rate) b.needs[k] = clamp(b.needs[k] - m * rate[k], 8, 100);
+  save();
+}
+function addNeed(k, v) { const n = bst().needs; n[k] = clamp(n[k] + v, 8, 100); save(); }
+
+// ================= Kleidung =================
+const ITEMS = {
+  top: [{ t: 'tshirt', c: '#5bb8f0', p: 'stern', c2: '#ffd34d' }, { t: 'tshirt', c: '#ff9ac1', p: 'herz' }, { t: 'langarm', c: '#7bd389', p: 'streifen' },
+    { t: 'langarm', c: '#ffd34d', p: 'blume', c2: '#ff6fa8' }, { t: 'pulli', c: '#9b7be8', p: 'punkte' }, { t: 'pulli', c: '#e94b5a' },
+    { t: 'tshirt', c: '#ffffff', p: 'streifen', c2: '#5bb8f0' }, { t: 'langarm', c: '#2e5aa8', p: 'stern', c2: '#ffd34d' }, { t: 'pulli', c: '#ff9a3c', p: 'herz', c2: '#fff' }],
+  bottom: [{ t: 'hose', c: '#3d63b8' }, { t: 'kurz', c: '#e94b5a' }, { t: 'rock', c: '#9b7be8', p: 'punkte' }, { t: 'rock', c: '#ff9ac1', p: 'streifen' },
+    { t: 'latz', c: '#4a74c9' }, { t: 'latz', c: '#ff9ac1', p: 'blume', c2: '#fff' }, { t: 'hose', c: '#7bd389' }, { t: 'kurz', c: '#ffd34d' }, { t: 'rock', c: '#5bb8f0', p: 'stern', c2: '#fff' }],
+  dress: [{ t: 'kleid', c: '#e94b5a' }, { t: 'kleid', c: '#ff9ac1', p: 'punkte' }, { t: 'kleid', c: '#5bb8f0', p: 'blume', c2: '#fff' }, { t: 'kleid', c: '#ffd34d', p: 'herz', c2: '#ff6fa8' },
+    { t: 'kleid', c: '#9b7be8', p: 'stern', c2: '#ffd34d' }, { t: 'strampler', c: '#7bd389', p: 'stern', c2: '#fff' }, { t: 'strampler', c: '#ffffff', p: 'streifen', c2: '#ff9ac1' },
+    { t: 'strampler', c: '#9b7be8', p: 'punkte', c2: '#ffd34d' }, { t: 'strampler', c: '#5bb8f0', p: 'herz', c2: '#fff' }],
+  shoes: [{ t: 'schuh', c: '#e94b5a' }, { t: 'schuh', c: '#5bb8f0' }, { t: 'stiefel', c: '#ffd34d' }, { t: 'stiefel', c: '#ff9ac1' }, { t: 'hase', c: '#ffffff' },
+    { t: 'socken', c: '#9b7be8' }, { t: 'schuh', c: '#7bd389' }, { t: 'socken', c: '#ff9a3c' }],
+  head: [{ t: 'schleife', c: '#e94b5a' }, { t: 'schleife', c: '#5bb8f0' }, { t: 'muetze', c: '#7bd389', c2: '#fff' }, { t: 'muetze', c: '#ff9ac1', c2: '#fff' },
+    { t: 'haarreif', c: '#ffd34d' }, { t: 'krone', c: '#ffd34d' }, { t: 'sonnenhut', c: '#fff3c4', c2: '#e94b5a' }, { t: 'kappe', c: '#2e5aa8' }, { t: 'blume', c: '#ff9ac1' }],
+  glasses: [{ t: 'herz', c: '#e94b5a' }, { t: 'rund', c: '#3a3a3a' }, { t: 'stern', c: '#ffd34d' }, { t: 'sonne', c: '#222222' }],
+};
+const HAIRS = ['locken', 'zoepfe', 'kurz', 'puffs', 'glatt', 'flaum'];
+const HAIR_COLORS = ['#f6d365', '#e8a33d', '#d9652b', '#6b4022', '#2b1a12', '#ff9ac1', '#a98be8'];
+
+function deco(p, c2, clip, cx, cy, box) {
+  if (!p) return '';
+  if (p === 'herz') return `<path d="${heart(cx, cy, 15)}" fill="${c2}"/>`;
+  if (p === 'stern') return `<path d="${star(cx, cy, 19, 8)}" fill="${c2}"/>`;
+  if (p === 'blume') return flower(cx, cy, 10, c2);
+  const [x, y, w, h] = box; let s = '';
+  if (p === 'punkte') for (let yy = y + 8, r = 0; yy < y + h; yy += 22, r++) for (let xx = x + 8 + (r % 2) * 11; xx < x + w; xx += 22) s += `<circle cx="${xx}" cy="${yy}" r="4.5"/>`;
+  if (p === 'streifen') for (let yy = y + 10; yy < y + h; yy += 20) s += `<rect x="${x}" y="${yy}" width="${w}" height="8"/>`;
+  return `<g fill="${c2}" clip-path="url(#${clip})">${s}</g>`;
+}
+const ARM_L = [[114, 222], [80, 318]], ARM_R = [[186, 222], [220, 318]];
+function sleeves(c, d, long) {
+  const L = long ? '86,300' : '99,262', R = long ? '214,300' : '201,262';
+  return `<g fill="none" stroke-linecap="round"><path d="M114,222 L${L}" stroke="${d}" stroke-width="40"/><path d="M186,222 L${R}" stroke="${d}" stroke-width="40"/>` +
+    `<path d="M114,222 L${L}" stroke="${c}" stroke-width="34"/><path d="M186,222 L${R}" stroke="${c}" stroke-width="34"/></g>`;
+}
+function pantLegs(c, d, end) {
+  return `<g fill="none"><path d="M127,318 L124.5,${end}" stroke="${d}" stroke-width="46"/><path d="M173,318 L175.5,${end}" stroke="${d}" stroke-width="46"/>` +
+    `<path d="M127,318 L124.5,${end - 2.5}" stroke="${c}" stroke-width="40"/><path d="M173,318 L175.5,${end - 2.5}" stroke="${c}" stroke-width="40"/></g>`;
+}
+function topSVG(it, u) {
+  const c = it.c, d = shade(c, -.2), c2 = it.c2 || (isLight(c) ? '#ff9ac1' : '#fff'), id = 'k' + u;
+  const P = 'M106,206 Q150,196 194,206 Q212,255 208,316 Q150,326 92,316 Q88,255 106,206 Z';
+  let s = sleeves(c, d, it.t !== 'tshirt');
+  s += `<clipPath id="${id}"><path d="${P}"/></clipPath><path d="${P}" fill="${c}" stroke="${d}" stroke-width="3"/>`;
+  s += deco(it.p, c2, id, 150, 262, [88, 196, 124, 132]);
+  if (it.t === 'pulli') s += `<path d="M93,303 Q150,313 207,303 L208,316 Q150,326 92,316Z" fill="${d}"/>`;
+  return s + `<path d="M130,203 Q150,216 170,203" fill="none" stroke="${d}" stroke-width="5" stroke-linecap="round"/>`;
+}
+function bottomSVG(it, u) {
+  const c = it.c, d = shade(c, -.2), c2 = it.c2 || '#fff', id = 'k' + u;
+  if (it.t === 'rock') {
+    const P = 'M98,296 L202,296 L230,386 Q150,404 70,386 Z';
+    return `<clipPath id="${id}"><path d="${P}"/></clipPath><path d="${P}" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      deco(it.p, c2, id, 150, 352, [66, 292, 168, 116]) + `<rect x="96" y="290" width="108" height="14" rx="7" fill="${d}"/>`;
+  }
+  const e = it.t === 'kurz' ? 374 : 442;
+  return pantLegs(c, d, e) + `<path d="M95,294 L205,294 Q210,330 200,350 L100,350 Q90,330 95,294Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+    `<path d="M150,302 L150,350" stroke="${d}" stroke-width="2.5"/>`;
+}
+function bibOverallSVG(it, u) {
+  const c = it.c, d = shade(c, -.2), c2 = it.c2 || '#ffd34d';
+  return `<path d="M119,238 L112,207 M181,238 L188,207" stroke="${c}" stroke-width="11" stroke-linecap="round"/>` +
+    `<path d="M114,234 L186,234 L192,300 L108,300Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+    `<circle cx="121" cy="244" r="5" fill="#ffd34d"/><circle cx="179" cy="244" r="5" fill="#ffd34d"/>` +
+    (it.p ? deco(it.p, c2, '', 150, 272) : `<rect x="132" y="258" width="36" height="28" rx="5" fill="none" stroke="${d}" stroke-width="3"/>`);
+}
+function dressSVG(it, u) {
+  const c = it.c, d = shade(c, -.2), c2 = it.c2 || '#fff', id = 'k' + u;
+  const emblem = ['herz', 'stern', 'blume'].includes(it.p);
+  if (it.t === 'kleid') {
+    const SK = 'M102,282 L198,282 L240,398 Q150,420 60,398 Z', BO = 'M106,206 Q150,196 194,206 Q204,245 199,290 L101,290 Q96,245 106,206Z';
+    return `<circle cx="110" cy="226" r="23" fill="${c}" stroke="${d}" stroke-width="3"/><circle cx="190" cy="226" r="23" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<clipPath id="${id}"><path d="${SK}"/></clipPath><path d="${SK}" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      (emblem ? '' : deco(it.p, c2, id, 0, 0, [56, 280, 190, 140])) +
+      `<path d="${BO}" fill="${c}" stroke="${d}" stroke-width="3"/>` + (emblem ? deco(it.p, c2, id, 150, 250) : '') +
+      (emblem ? deco(it.p, c2, id, 120, 360) + deco(it.p, c2, id, 182, 368) : '') +
+      `<rect x="99" y="280" width="102" height="13" rx="6" fill="${d}"/>` +
+      `<ellipse cx="137" cy="210" rx="15" ry="9" fill="#fff" stroke="${d}" stroke-width="2"/><ellipse cx="163" cy="210" rx="15" ry="9" fill="#fff" stroke="${d}" stroke-width="2"/>`;
+  }
+  const P = 'M106,206 Q150,196 194,206 Q212,255 208,334 Q150,346 92,334 Q88,255 106,206 Z';
+  return sleeves(c, d, true) + pantLegs(c, d, 404) + `<clipPath id="${id}"><path d="${P}"/></clipPath><path d="${P}" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+    deco(it.p, c2, id, 150, 262, [88, 196, 124, 150]) +
+    `<circle cx="150" cy="300" r="4" fill="${d}"/><circle cx="150" cy="318" r="4" fill="${d}"/>` +
+    `<path d="M130,203 Q150,216 170,203" fill="none" stroke="${d}" stroke-width="5" stroke-linecap="round"/>`;
+}
+function shoesSVG(it) {
+  const c = it.c, d = shade(c, isLight(c) ? -.18 : -.28); let s = '';
+  for (const x of [118, 182]) {
+    const m = x < 150 ? -1 : 1;
+    if (it.t === 'schuh') s += `<path d="M${x - 27},463 Q${x - 26},440 ${x},441 Q${x + 26},442 ${x + 27},463 Q${x},478 ${x - 27},463Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<path d="M${x - 18},451 L${x + 18},451" stroke="${d}" stroke-width="5" stroke-linecap="round"/><circle cx="${x + m * 14}" cy="451" r="3.5" fill="#fff"/>` +
+      `<path d="M${x - 25},467 Q${x},478 ${x + 25},467" stroke="#fff" stroke-width="4" fill="none"/>`;
+    if (it.t === 'stiefel') s += `<rect x="${x - 22}" y="414" width="44" height="46" rx="10" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<ellipse cx="${x + m * 4}" cy="462" rx="28" ry="15" fill="${c}" stroke="${d}" stroke-width="3"/><rect x="${x - 25}" y="408" width="50" height="13" rx="6" fill="${d}"/>` +
+      `<circle cx="${x}" cy="436" r="5" fill="#fff" opacity=".7"/>`;
+    if (it.t === 'hase') s += `<ellipse cx="${x - 9}" cy="436" rx="7" ry="18" fill="${c}" stroke="#e5c7d3" stroke-width="2"/><ellipse cx="${x + 9}" cy="436" rx="7" ry="18" fill="${c}" stroke="#e5c7d3" stroke-width="2"/>` +
+      `<ellipse cx="${x - 9}" cy="438" rx="3" ry="11" fill="#ffb3cf"/><ellipse cx="${x + 9}" cy="438" rx="3" ry="11" fill="#ffb3cf"/>` +
+      `<ellipse cx="${x}" cy="462" rx="29" ry="17" fill="${c}" stroke="#e5c7d3" stroke-width="3"/>` +
+      `<circle cx="${x - 7}" cy="457" r="2.6" fill="#333"/><circle cx="${x + 7}" cy="457" r="2.6" fill="#333"/><circle cx="${x}" cy="465" r="3.2" fill="#ff8fb5"/>`;
+    if (it.t === 'socken') s += `<rect x="${x - 19}" y="426" width="38" height="32" rx="6" fill="${c}"/><ellipse cx="${x}" cy="461" rx="26" ry="15" fill="${c}"/>` +
+      `<rect x="${x - 19}" y="426" width="38" height="8" rx="3" fill="${d}"/><circle cx="${x}" cy="446" r="4" fill="#fff" opacity=".8"/>`;
+  }
+  return s;
+}
+function headAccSVG(it) {
+  const c = it.c, d = shade(c, isLight(c) ? -.2 : -.28), c2 = it.c2 || '#fff';
+  switch (it.t) {
+    case 'schleife': return `<g transform="translate(200,78) rotate(-15)"><path d="M0,0 L-32,-19 Q-38,0 -32,19Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<path d="M0,0 L32,-19 Q38,0 32,19Z" fill="${c}" stroke="${d}" stroke-width="3"/><circle r="9" fill="${d}"/></g>`;
+    case 'muetze': return `<path d="M70,120 Q70,36 150,34 Q230,36 230,120 Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<path d="M110,48 L110,110 M150,36 L150,110 M190,48 L190,110" stroke="${d}" stroke-width="3" opacity=".5"/>` +
+      `<rect x="64" y="104" width="172" height="26" rx="13" fill="${c2}" stroke="${d}" stroke-width="3"/><circle cx="150" cy="32" r="18" fill="${c2}" stroke="${d}" stroke-width="3"/>`;
+    case 'haarreif': return `<path d="M76,124 Q78,48 150,46 Q222,48 224,124" stroke="${c}" stroke-width="11" fill="none" stroke-linecap="round"/>` +
+      flower(108, 66, 11, '#ff9ac1') + flower(192, 66, 8, '#ff9ac1');
+    case 'krone': return `<path d="M112,64 L116,28 L134,48 L150,20 L166,48 L184,28 L188,64 Z" fill="${c}" stroke="#c9952a" stroke-width="3" stroke-linejoin="round"/>` +
+      `<circle cx="150" cy="52" r="6" fill="#e94b5a"/><circle cx="128" cy="56" r="4" fill="#5bb8f0"/><circle cx="172" cy="56" r="4" fill="#5bb8f0"/>`;
+    case 'sonnenhut': return `<ellipse cx="150" cy="80" rx="120" ry="26" fill="${c}" stroke="#d8c58a" stroke-width="3"/>` +
+      `<path d="M88,80 Q90,22 150,20 Q210,22 212,80Z" fill="${c}" stroke="#d8c58a" stroke-width="3"/><path d="M89,70 Q150,82 211,70 L211,56 Q150,68 89,56Z" fill="${c2}"/>` +
+      flower(204, 64, 9, '#ff9ac1');
+    case 'kappe': return `<path d="M74,112 Q74,38 150,36 Q226,38 226,112 Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<path d="M150,100 Q236,90 268,112 Q236,124 150,114Z" fill="${d}" stroke="${d}" stroke-width="3"/><circle cx="150" cy="36" r="7" fill="${d}"/>` +
+      `<path d="${star(150, 78, 16, 7)}" fill="#ffd34d"/>`;
+    case 'blume': return flower(206, 84, 16, c);
+  }
+  return '';
+}
+function glassesSVG(it) {
+  const c = it.c;
+  switch (it.t) {
+    case 'herz': return `<path d="M136,134 Q150,126 164,134" stroke="${c}" stroke-width="5" fill="none"/>` +
+      `<path d="${heart(120, 138, 21)}" fill="${c}" opacity=".88" stroke="${shade(c, -.3)}" stroke-width="3"/><path d="${heart(180, 138, 21)}" fill="${c}" opacity=".88" stroke="${shade(c, -.3)}" stroke-width="3"/>`;
+    case 'rund': return `<path d="M144,136 Q150,130 156,136 M98,136 L78,132 M202,136 L222,132" stroke="${c}" stroke-width="5" fill="none"/>` +
+      `<circle cx="122" cy="139" r="23" fill="rgba(255,255,255,.18)" stroke="${c}" stroke-width="5"/><circle cx="178" cy="139" r="23" fill="rgba(255,255,255,.18)" stroke="${c}" stroke-width="5"/>`;
+    case 'stern': return `<path d="M140,136 Q150,128 160,136" stroke="#e9a91d" stroke-width="5" fill="none"/>` +
+      `<path d="${star(121, 139, 31, 15)}" fill="${c}" opacity=".9" stroke="#e9a91d" stroke-width="3" stroke-linejoin="round"/><path d="${star(179, 139, 31, 15)}" fill="${c}" opacity=".9" stroke="#e9a91d" stroke-width="3" stroke-linejoin="round"/>`;
+    case 'sonne': return `<path d="M142,134 Q150,128 158,134 M98,134 L78,130 M202,134 L222,130" stroke="${c}" stroke-width="5" fill="none"/>` +
+      `<rect x="98" y="122" width="46" height="34" rx="14" fill="${c}"/><rect x="156" y="122" width="46" height="34" rx="14" fill="${c}"/>` +
+      `<path d="M106,130 L118,130 M164,130 L176,130" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".6"/>`;
+  }
+  return '';
+}
+function itemSVG(cat, it, u) {
+  return cat === 'top' ? topSVG(it, u) : cat === 'bottom' ? bottomSVG(it, u) + (it.t === 'latz' ? bibOverallSVG(it, u) : '') : cat === 'dress' ? dressSVG(it, u) :
+    cat === 'shoes' ? shoesSVG(it) : cat === 'head' ? headAccSVG(it) : glassesSVG(it);
+}
+
+// ================= Baby zeichnen =================
+function hairBack(st, c) {
+  const d = shade(c, -.25);
+  switch (st) {
+    case 'locken': return `<g fill="${c}" stroke="${d}" stroke-width="3">` + [[78, 150, 38], [222, 150, 38], [86, 198, 30], [214, 198, 30], [102, 100, 42], [198, 100, 42]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join('') + '</g>';
+    case 'glatt': return `<path d="M70,130 Q66,48 150,46 Q234,48 230,130 L240,248 Q150,264 60,248 Z" fill="${c}" stroke="${d}" stroke-width="3"/>`;
+    case 'zoepfe': return `<g fill="${c}" stroke="${d}" stroke-width="3"><ellipse cx="50" cy="142" rx="24" ry="40" transform="rotate(22 50 142)"/><ellipse cx="250" cy="142" rx="24" ry="40" transform="rotate(-22 250 142)"/></g>`;
+    case 'puffs': return `<g fill="${c}" stroke="${d}" stroke-width="3"><circle cx="80" cy="70" r="40"/><circle cx="220" cy="70" r="40"/></g>`;
+  }
+  return '';
+}
+function hairFront(st, c) {
+  const d = shade(c, -.25);
+  const cap = (extra = '') => `<path d="M76,128 Q72,56 150,52 Q228,56 224,128 Q206,94 150,92 Q94,94 76,128Z" fill="${c}" stroke="${d}" stroke-width="3"/>` + extra;
+  switch (st) {
+    case 'locken': return cap(`<g fill="${c}" stroke="${d}" stroke-width="3">` + [[90, 106, 17], [108, 86, 18], [132, 74, 18], [168, 74, 18], [192, 86, 18], [210, 106, 17], [150, 70, 18]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join('') + '</g>' +
+      `<path d="M150,90 q-14,4 -10,16 q4,8 12,2" stroke="${d}" stroke-width="3" fill="${c}"/>`);
+    case 'glatt': return `<path d="M74,140 Q70,50 150,48 Q230,50 226,140 Q222,104 204,96 L194,112 L180,96 L164,110 L150,96 L136,110 L120,96 L106,112 L96,96 Q78,104 74,140Z" fill="${c}" stroke="${d}" stroke-width="3" stroke-linejoin="round"/>`;
+    case 'zoepfe': return cap(`<circle cx="70" cy="118" r="10" fill="#ff6fa8"/><circle cx="230" cy="118" r="10" fill="#ff6fa8"/>`);
+    case 'kurz': return `<path d="M78,122 Q76,54 150,50 Q224,54 222,122 Q212,92 184,90 Q172,104 152,94 Q128,88 112,100 Q92,100 78,122Z" fill="${c}" stroke="${d}" stroke-width="3"/>` +
+      `<path d="M140,54 Q146,28 166,40" stroke="${c}" stroke-width="9" fill="none" stroke-linecap="round"/>`;
+    case 'puffs': return cap(`<circle cx="103" cy="86" r="9" fill="#ffd34d"/><circle cx="197" cy="86" r="9" fill="#ffd34d"/>`);
+    case 'flaum': return `<path d="M150,64 q-14,-20 4,-28 q18,-4 14,14 q-4,10 -12,4" stroke="${c}" stroke-width="6" fill="none" stroke-linecap="round"/>` +
+      `<path d="M128,64 q-4,-10 2,-16 M172,64 q4,-10 -2,-16" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  }
+  return '';
+}
+function eyesSVG(b, expr) {
+  const L = '#5a3a2a';
+  if (expr === 'sleep') return `<path d="M106,140 Q122,152 138,140 M162,140 Q178,152 194,140" stroke="${L}" stroke-width="4" fill="none" stroke-linecap="round"/>` +
+    `<path d="M108,145 l-6,5 M114,148 l-3,6 M192,145 l6,5 M186,148 l3,6" stroke="${L}" stroke-width="2.5" stroke-linecap="round"/>`;
+  if (expr === 'laugh') return `<path d="M106,146 Q122,126 138,146 M162,146 Q178,126 194,146" stroke="${L}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+  if (expr === 'yuck') return `<path d="M108,130 L134,140 L108,150 M192,130 L166,140 L192,150" stroke="${L}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  let s = '<g class="blink">';
+  for (const x of [122, 178]) {
+    s += `<ellipse cx="${x}" cy="140" rx="17" ry="20" fill="#fff" stroke="${L}" stroke-width="2.5"/><circle cx="${x}" cy="143" r="13" fill="${b.eyes}"/>` +
+      `<circle cx="${x}" cy="144" r="6.5" fill="#1a1010"/><circle cx="${x + 5}" cy="137" r="4.5" fill="#fff"/><circle cx="${x - 4}" cy="149" r="2" fill="#fff" opacity=".8"/>` +
+      `<path d="M${x - 19},134 Q${x},112 ${x + 19},134" stroke="${L}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+    if (expr === 'sleepy') s += `<path d="M${x - 19},141 Q${x},112 ${x + 19},141 Z" fill="${b.skin}" stroke="${L}" stroke-width="3"/>`;
+  }
+  return s + '</g>';
+}
+function mouthSVG(expr) {
+  const M = '#9c2f45', T = '#ff8fa3';
+  switch (expr) {
+    case 'laugh': return `<path d="M128,172 Q150,208 172,172 Z" fill="${M}" stroke="#7a2236" stroke-width="2" stroke-linejoin="round"/><path d="M138,189 Q150,182 162,189 Q150,200 138,189Z" fill="${T}"/>`;
+    case 'open': return `<ellipse cx="150" cy="183" rx="12" ry="14" fill="${M}"/><ellipse cx="150" cy="191" rx="7" ry="4" fill="${T}"/>`;
+    case 'chew1': return `<ellipse cx="150" cy="181" rx="11" ry="3" fill="${M}"/>`;
+    case 'chew2': return `<ellipse cx="150" cy="181" rx="9" ry="7" fill="${M}"/>`;
+    case 'drink': return `<ellipse cx="150" cy="182" rx="7" ry="7" fill="${M}"/>`;
+    case 'yuck': return `<path d="M132,180 Q141,173 150,180 Q159,187 168,180" stroke="${M}" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M144,182 Q150,200 156,182Z" fill="${T}"/>`;
+    case 'sad': return `<path d="M136,187 Q150,175 164,187" stroke="${M}" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M110,160 q-6,10 0,13 q6,-3 0,-13Z" fill="#7cc4f2"/>`;
+    case 'sleep': return `<ellipse cx="150" cy="182" rx="4" ry="5" fill="${M}"/>`;
+    case 'sleepy': return `<path d="M140,180 Q150,186 160,180" stroke="${M}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  }
+  return `<path d="M134,176 Q150,193 166,176" stroke="#b5485d" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+}
+function faceSVG(b, expr) {
+  const bd = shade(b.hairColor === '#f6d365' ? '#c9952a' : b.hairColor, -.15);
+  const brows = expr === 'sad' ? 'M108,108 Q124,104 136,96 M164,96 Q176,104 192,108' : 'M108,104 Q122,94 136,100 M164,100 Q178,94 192,104';
+  return `<ellipse cx="102" cy="168" rx="15" ry="10" fill="#ff8fa3" opacity=".45"/><ellipse cx="198" cy="168" rx="15" ry="10" fill="#ff8fa3" opacity=".45"/>` +
+    `<path d="${brows}" stroke="${bd}" stroke-width="3.5" fill="none" stroke-linecap="round"/>` + eyesSVG(b, expr) +
+    `<path d="M144,161 Q150,167 156,161" stroke="${shade(b.skin, -.3)}" stroke-width="3" fill="none" stroke-linecap="round"/>` + mouthSVG(expr);
+}
+function headSVG(b, expr) {
+  const s = b.skin, sd = shade(s, -.15);
+  return `<g fill="${s}" stroke="${sd}" stroke-width="3"><circle cx="76" cy="142" r="15"/><circle cx="224" cy="142" r="15"/></g>` +
+    `<path d="M70,142 q6,-6 10,0 M230,142 q-6,-6 -10,0" stroke="${sd}" stroke-width="2.5" fill="none"/>` +
+    `<circle cx="150" cy="135" r="76" fill="${s}" stroke="${sd}" stroke-width="3"/><g class="face">${faceSVG(b, expr)}</g>`;
+}
+const BIB = `<path d="M116,210 Q150,232 184,210 L192,292 Q150,314 108,292Z" fill="#fff" stroke="#9fd3f5" stroke-width="4"/>` +
+  `<path d="M116,210 Q150,232 184,210" stroke="#5bb8f0" stroke-width="7" fill="none" stroke-linecap="round"/><path d="${heart(150, 262, 13)}" fill="#ff9ac1"/>`;
+function babySVG(b, o = {}) {
+  const u = ++UID, of = o.outfit || {}, s0 = b.skin, sd = shade(s0, -.15);
+  const it = cat => (!o.naked && of[cat] != null && of[cat] >= 0) ? ITEMS[cat][of[cat]] : null;
+  const dress = it('dress'), top = dress ? null : it('top'), bot = dress ? null : it('bottom'), shoes = it('shoes'), hat = it('head'), gl = it('glasses');
+  let s = `<svg class="baby" viewBox="${o.viewBox || '0 0 300 500'}" xmlns="http://www.w3.org/2000/svg">`;
+  s += hairBack(b.hair, b.hairColor);
+  // Beine und Füße
+  if (!o.noLegs) s += `<g fill="none" stroke-linecap="round"><path d="M127,320 L123,446" stroke="${sd}" stroke-width="40"/><path d="M173,320 L177,446" stroke="${sd}" stroke-width="40"/>` +
+    `<path d="M127,320 L123,446" stroke="${s0}" stroke-width="34"/><path d="M173,320 L177,446" stroke="${s0}" stroke-width="34"/></g>` +
+    `<g fill="${s0}" stroke="${sd}" stroke-width="3"><ellipse cx="118" cy="460" rx="25" ry="14"/><ellipse cx="182" cy="460" rx="25" ry="14"/></g>`;
+  // Körper
+  s += `<path d="M110,206 Q150,196 190,206 Q210,255 206,330 L94,330 Q90,255 110,206 Z" fill="${s0}" stroke="${sd}" stroke-width="3"/>` +
+    `<path d="M147,290 q3,4 6,0" stroke="${sd}" stroke-width="3" fill="none"/><rect x="133" y="190" width="34" height="26" fill="${s0}"/>`;
+  if (!o.noDiaper) s += `<path d="M96,298 L204,298 Q208,340 178,356 L122,356 Q92,340 96,298Z" fill="#fff" stroke="#cfd8e3" stroke-width="3"/><rect x="96" y="294" width="108" height="11" rx="5" fill="#bfe3ff"/>`;
+  if (bot) s += bottomSVG(bot, u);
+  if (dress && dress.t === 'kleid') s += '';
+  if (shoes) s += shoesSVG(shoes);
+  // Arme
+  s += `<g fill="none" stroke-linecap="round"><path d="M${ARM_L[0]} L${ARM_L[1]}" stroke="${sd}" stroke-width="32"/><path d="M${ARM_R[0]} L${ARM_R[1]}" stroke="${sd}" stroke-width="32"/>` +
+    `<path d="M${ARM_L[0]} L${ARM_L[1]}" stroke="${s0}" stroke-width="26"/><path d="M${ARM_R[0]} L${ARM_R[1]}" stroke="${s0}" stroke-width="26"/></g>`;
+  if (top) s += topSVG(top, u + 'a');
+  if (dress) s += dressSVG(dress, u + 'b');
+  if (bot && bot.t === 'latz') s += bibOverallSVG(bot, u);
+  if (o.bib) s += BIB;
+  s += `<g fill="${s0}" stroke="${sd}" stroke-width="3"><circle cx="78" cy="322" r="17"/><circle cx="222" cy="322" r="17"/></g>`;
+  // Kopf
+  s += headSVG(b, o.expr || 'smile') + hairFront(b.hair, b.hairColor);
+  if (hat) s += headAccSVG(hat);
+  if (gl) s += glassesSVG(gl);
+  return s + `<g class="fx"></g></svg>`;
+}
+function setExpr(root, b, expr) { const f = root.querySelector('.face'); if (f && f.dataset.e !== expr) { f.innerHTML = faceSVG(b, expr); f.dataset.e = expr; } }
+
+// ================= Allgemeine Effekte =================
+function say(box, text, ms = 1400) {
+  $$('.bubble', box).forEach(e => e.remove());
+  const d = document.createElement('div'); d.className = 'bubble'; d.textContent = text; box.appendChild(d);
+  setTimeout(() => d.remove(), ms);
+}
+function floatAt(x, y, txt) {
+  const d = document.createElement('div'); d.className = 'float'; d.textContent = txt;
+  d.style.left = (x - 17 + rnd(-20, 20)) + 'px'; d.style.top = (y - 20) + 'px'; document.body.appendChild(d); setTimeout(() => d.remove(), 1300);
+}
+function sparkleAround(el, n = 6, sym = '✨') { const r = el.getBoundingClientRect(); for (let i = 0; i < n; i++) setTimeout(() => floatAt(r.left + rnd(.1, .9) * r.width, r.top + rnd(.1, .8) * r.height, sym), i * 90); }
+function animClass(el, c, ms = 600) { el.classList.remove(c); void el.offsetWidth; el.classList.add(c); setTimeout(() => el.classList.remove(c), ms); }
+function reward(msg) {
+  S.stars++; save(); updateStars(true); snd.chime();
+  const r = document.createElement('div'); r.className = 'reward'; r.innerHTML = `<div class="big">⭐</div><div class="msg">${msg}</div>`;
+  document.body.appendChild(r); setTimeout(() => r.remove(), 2000);
+  const cols = ['#ff6fa8', '#ffd34d', '#5bb8f0', '#7bd389', '#9b7be8', '#ff9a3c'];
+  for (let i = 0; i < 34; i++) {
+    const c = document.createElement('div'); c.className = 'conf';
+    c.style.left = rnd(0, 100) + 'vw'; c.style.background = pickOne(cols); c.style.animationDelay = rnd(0, .5) + 's'; c.style.animationDuration = rnd(1.4, 2.2) + 's';
+    document.body.appendChild(c); setTimeout(() => c.remove(), 2800);
+  }
+}
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2000); }
+
+// Ziehen und Ablegen (Werkzeuge, Essen)
+function draggable(el, h) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); ac();
+    if (el.classList.contains('locked')) { animClass(el, 'wiggle', 500); h.onLocked && h.onLocked(); return; }
+    const g = document.createElement('div'); g.className = 'ghost'; g.innerHTML = h.icon || el.innerHTML; document.body.appendChild(g);
+    const OFF = 45;
+    const place = (x, y) => { g.style.left = x + 'px'; g.style.top = (y - OFF) + 'px'; };
+    place(e.clientX, e.clientY); el.classList.add('dragging'); h.onStart && h.onStart();
+    const mv = ev => { place(ev.clientX, ev.clientY); h.onMove && h.onMove(ev.clientX, ev.clientY - OFF); };
+    const up = ev => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      el.classList.remove('dragging');
+      h.onEnd && h.onEnd(ev.clientX, ev.clientY - OFF);
+      g.classList.add('gone'); setTimeout(() => g.remove(), 220);
+    };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  });
+}
+
+// ================= Szenen =================
+const SCENES = {};
+let current = '', cleanups = [];
+function later(fn, ms) { const id = setTimeout(fn, ms); cleanups.push(() => clearTimeout(id)); return id; }
+function every(fn, ms) { const id = setInterval(fn, ms); cleanups.push(() => clearInterval(id)); return id; }
+function go(name) {
+  cleanups.forEach(f => f()); cleanups = []; stopLullaby();
+  decay(); current = name;
+  const sc = $('#scene'); sc.innerHTML = '';
+  SCENES[name](sc); updateBar();
+}
+const TITLES = { chooser: 'Babyzeit', bath: 'Baden', food: 'Essen', dress: 'Anziehen', sleep: 'Schlafen', album: 'Fotoalbum' };
+function updateBar() {
+  $('#title').textContent = current === 'hub' ? baby().name : TITLES[current];
+  const hb = $('#homeBtn');
+  hb.textContent = current === 'hub' ? '👶' : '🏠';
+  hb.classList.toggle('hidden', current === 'chooser' && !S.chosen);
+  updateStars();
+  $('#soundBtn').textContent = S.sound ? '🔊' : '🔇';
+}
+function updateStars(bump) { const s = $('#stars'); s.textContent = '⭐ ' + S.stars; if (bump) animClass(s, 'bump', 500); }
+$('#homeBtn').addEventListener('click', () => { snd.click(); go(current === 'hub' ? 'chooser' : 'hub'); });
+$('#soundBtn').addEventListener('click', () => {
+  S.sound = !S.sound; save();
+  if (!S.sound) { stopLullaby(); if (AC) AC.suspend(); } else { ac(); snd.click(); }
+  updateBar();
+});
+
+// ---------- Babywahl ----------
+SCENES.chooser = sc => {
+  sc.innerHTML = `<div class="stage chooser room"><h1>Wähle ein Baby</h1><div class="cards">` +
+    BABIES.map((b, i) => `<button class="card" data-i="${i}">${babySVG(baby(i), { outfit: S.babies[i].outfit, viewBox: '10 0 280 300', expr: 'smile' })}<b>${b.name}</b></button>`).join('') + `</div></div>`;
+  $$('.card', sc).forEach(c => c.addEventListener('click', () => {
+    S.cur = +c.dataset.i; S.chosen = true; save(); ac(); snd.giggle(); go('hub');
+  }));
+};
+
+// ---------- Kinderzimmer ----------
+const ACTS = [{ go: 'bath', ic: '🛁', lb: 'Baden', need: 'sauber' }, { go: 'food', ic: '🍼', lb: 'Essen', need: 'satt' },
+  { go: 'dress', ic: '👗', lb: 'Anziehen' }, { go: 'sleep', ic: '🌙', lb: 'Schlafen', need: 'ruhe' }];
+const NEED_ICON = { satt: '🍼', sauber: '🛁', ruhe: '😴', laune: '🧸' };
+SCENES.hub = sc => {
+  const b = baby(), bs = bst();
+  sc.innerHTML = `<div class="stage scn room hub">
+    <div class="main"><button class="corner" id="albumBtn">📷</button><div class="babyBox sway" id="bb"></div>
+      <div class="laune">❤️<span class="bar"><i data-n="laune"></i></span></div></div>
+    <div class="tray">${ACTS.map(a => `<button class="act" data-go="${a.go}" ${a.need ? `data-need="${a.need}"` : ''}><span class="ic">${a.ic}</span><span class="lb">${a.lb}</span>${a.need ? `<span class="bar"><i data-n="${a.need}"></i></span>` : ''}</button>`).join('')}</div></div>`;
+  const bb = $('#bb', sc);
+  bb.innerHTML = babySVG(b, { outfit: bs.outfit, expr: 'smile' }) + '<div class="think hidden" id="think"></div>';
+  let busy = 0;
+  const mood = () => { const n = bs.needs, lo = Math.min(n.satt, n.sauber, n.ruhe, n.laune); return lo < 25 ? 'sad' : n.ruhe < 35 ? 'sleepy' : 'smile'; };
+  function refresh() {
+    $$('[data-n]', sc).forEach(i => i.style.width = bs.needs[i.dataset.n] + '%');
+    $$('.act[data-need]', sc).forEach(a => a.classList.toggle('low', bs.needs[a.dataset.need] < 35));
+    let k = null, lo = 40; for (const n in bs.needs) if (bs.needs[n] < lo) { lo = bs.needs[n]; k = n; }
+    const th = $('#think', sc); th.classList.toggle('hidden', !k); if (k) th.textContent = NEED_ICON[k];
+    if (!busy) setExpr(bb, b, mood());
+  }
+  refresh();
+  every(() => { decay(); refresh(); }, 5000);
+  const svg = $('svg', bb);
+  svg.addEventListener('pointerdown', e => {
+    ac(); clearTimeout(busy);
+    setExpr(bb, b, 'laugh'); snd.giggle(); animClass(bb, 'wiggle', 500);
+    floatAt(e.clientX, e.clientY, pickOne(['❤️', '💕', '💖', '😊']));
+    if (Math.random() < .35) say(bb, pickOne(['Hihi!', 'Kitzelig!', 'Juhu!', 'Nochmal!']));
+    addNeed('laune', 6);
+    busy = setTimeout(() => { busy = 0; refresh(); }, 900);
+    refresh();
+  });
+  $$('.act', sc).forEach(a => a.addEventListener('click', () => { snd.click(); go(a.dataset.go); }));
+  $('#albumBtn', sc).addEventListener('click', () => { snd.click(); go('album'); });
+  later(() => { if (Math.random() < .5) say(bb, pickOne(['Hallo!', 'Da-da!', 'Spielen?', 'Hihi'])); }, 700);
+};
+
+// ---------- Baden ----------
+const TOWEL = `<svg viewBox="0 0 80 80"><rect x="8" y="12" width="64" height="58" rx="10" fill="#ff9ac1"/><rect x="8" y="50" width="64" height="9" fill="#fff" opacity=".75"/>` +
+  `<rect x="8" y="12" width="64" height="12" rx="6" fill="#ff74a8"/><path d="M20,30 L20,44 M32,30 L32,44 M44,30 L44,44 M56,30 L56,44" stroke="#ffc2da" stroke-width="3"/></svg>`;
+function tubSVG() {
+  let bub = ''; for (let x = 30; x <= 470; x += 26) bub += `<circle cx="${x + rnd(-6, 6)}" cy="${rnd(14, 26)}" r="${rnd(12, 20)}" fill="#fff" stroke="#cde9f7" stroke-width="2"/>`;
+  return `<svg class="tub" viewBox="0 0 500 180"><path d="M10,40 L490,40 Q484,150 400,166 L100,166 Q16,150 10,40Z" fill="#fff" stroke="#bcdcee" stroke-width="5"/>` +
+    `<path d="M40,60 Q50,140 110,150" stroke="#e6f4fb" stroke-width="10" fill="none" stroke-linecap="round"/>` +
+    `<rect x="0" y="30" width="500" height="20" rx="10" fill="#f4fbff" stroke="#bcdcee" stroke-width="4"/>${bub}` +
+    `<rect x="90" y="160" width="26" height="18" rx="6" fill="#ffd34d"/><rect x="384" y="160" width="26" height="18" rx="6" fill="#ffd34d"/></svg>`;
+}
+const DIRT = [[110, 172], [192, 162], [150, 116], [97, 262], [206, 270], [134, 246], [172, 230], [162, 280], [124, 286]];
+SCENES.bath = sc => {
+  const b = baby(), bs = bst();
+  sc.innerHTML = `<div class="stage scn bathroom"><div class="main"><div class="steps"><span>🧽</span><span>🚿</span><span>🧻</span></div><div class="babyBox" id="bb"></div></div>
+    <div class="tray"><div class="tool" data-t="0">🧽</div><div class="tool" data-t="1">🚿</div><div class="tool" data-t="2">${TOWEL}</div></div></div>`;
+  const bb = $('#bb', sc);
+  bb.innerHTML = babySVG(b, { naked: true, noDiaper: true, noLegs: true, expr: 'smile' }) + tubSVG() + '<div class="duck">🦆</div>';
+  const svg = $('svg.baby', bb), fx = $('.fx', svg), tools = $$('.tool', sc), stepEls = $$('.steps span', sc);
+  const count = bs.needs.sauber > 75 ? 4 : bs.needs.sauber > 45 ? 6 : 9;
+  const spots = shuffle(DIRT).slice(0, count).map(([x, y]) => {
+    const g = svgEl('g', { fill: '#8a6a45' }); g.innerHTML = `<circle cx="${x}" cy="${y}" r="10"/><circle cx="${x + 9}" cy="${y + 5}" r="7"/><circle cx="${x - 7}" cy="${y + 7}" r="6"/><circle cx="${x + 2}" cy="${y - 8}" r="5"/>`;
+    g.style.opacity = .8; fx.appendChild(g); return { x, y, hp: 1, g };
+  });
+  let foam = [], drops = [], step = 0, done = false, happyT = 0;
+  function setStep(n) {
+    step = n;
+    tools.forEach((t, i) => { t.classList.toggle('locked', n < 3 && i !== n); t.classList.toggle('next', i === n); });
+    stepEls.forEach((s, i) => { s.className = i < n ? 'done' : i === n ? 'on' : ''; });
+  }
+  setStep(0);
+  const inBaby = p => p && p.x > 40 && p.x < 260 && p.y > 40 && p.y < 300;
+  const happy = () => { setExpr(bb, b, 'laugh'); clearTimeout(happyT); happyT = setTimeout(() => setExpr(bb, b, 'smile'), 700); };
+  const pop = thr(snd.pop, 110), splash = thr(snd.splash, 260), swoosh = thr(snd.swoosh, 220), giggle = thr(snd.giggle, 1500);
+  function addFoam(p) {
+    if (foam.length > 80) return;
+    const c = svgEl('circle', { cx: p.x + rnd(-16, 16), cy: p.y + rnd(-16, 16), r: rnd(6, 14), fill: '#fff', stroke: '#b9def2', 'stroke-width': 2, opacity: .95 });
+    fx.appendChild(c); foam.push(c);
+  }
+  function addDrops() {
+    for (let i = 0; i < 12; i++) {
+      const x = rnd(85, 215), y = i < 6 ? rnd(80, 200) : rnd(215, 290);
+      const d = svgEl('path', { d: `M${x},${y - 9} Q${x + 7},${y + 2} ${x},${y + 6} Q${x - 7},${y + 2} ${x},${y - 9}Z`, fill: '#7cc4f2', stroke: '#fff', 'stroke-width': 1.5 });
+      fx.appendChild(d); drops.push({ x, y, el: d });
+    }
+  }
+  function finish() {
+    done = true; setStep(3); bs.needs.sauber = 100; addNeed('laune', 10);
+    setExpr(bb, b, 'laugh'); snd.giggle(); say(bb, 'Sauber! ✨', 1800); sparkleAround(bb, 10);
+    later(() => reward('Blitzsauber!'), 500); later(() => setExpr(bb, b, 'smile'), 1600);
+  }
+  // Schwamm
+  draggable(tools[0], {
+    onMove(x, y) {
+      const p = toSvg(svg, x, y); if (!inBaby(p)) return;
+      let hit = false;
+      for (const s of spots) if (s.hp > 0 && Math.hypot(s.x - p.x, s.y - p.y) < 36) { s.hp -= .08; s.g.style.opacity = Math.max(0, s.hp * .8); hit = true; if (s.hp <= 0) s.g.remove(); }
+      if (Math.random() < .5) addFoam(p);
+      pop(); happy(); if (hit) giggle();
+      if (step === 0 && spots.every(s => s.hp <= 0)) { setStep(1); say(bb, '🚿'); }
+    },
+  });
+  // Dusche
+  const spray = thr((x, y) => { for (let i = 0; i < 3; i++) { const d = document.createElement('div'); d.className = 'spray'; d.style.left = (x + rnd(-22, 22)) + 'px'; d.style.top = (y + 20 + rnd(0, 10)) + 'px'; document.body.appendChild(d); setTimeout(() => d.remove(), 560); } }, 45);
+  draggable(tools[1], {
+    onMove(x, y) {
+      spray(x, y); splash();
+      const p = toSvg(svg, x, y + 50); if (!inBaby(p)) return;
+      foam = foam.filter(c => { if (Math.hypot(c.cx.baseVal.value - p.x, c.cy.baseVal.value - p.y) < 55) { c.remove(); return false; } return true; });
+      happy();
+      if (step === 1 && foam.length === 0) { addDrops(); setStep(2); say(bb, 'Brrr!'); }
+      if (done && drops.length < 12 && Math.random() < .2) { const n = drops.length; addDrops(); drops.splice(n + 4).forEach(d => d.el.remove()); }
+    },
+  });
+  // Handtuch
+  draggable(tools[2], {
+    onMove(x, y) {
+      const p = toSvg(svg, x, y); if (!inBaby(p)) return;
+      swoosh();
+      drops = drops.filter(d => { if (Math.hypot(d.x - p.x, d.y - p.y) < 50) { d.el.remove(); return false; } return true; });
+      happy();
+      if (step === 2 && drops.length === 0) finish();
+    },
+  });
+  const duck = $('.duck', bb);
+  duck.addEventListener('pointerdown', () => { ac(); snd.squeak(); animClass(duck, 'squeak', 500); happy(); });
+  later(() => say(bb, pickOne(['Bah, schmutzig!', 'Baden!', 'Plitsch!'])), 600);
+};
+
+// ---------- Essen ----------
+const FOODS = [
+  { id: 'brei', icon: '🥣', drag: '🥄', v: 22, col: '#f3d9a4', messy: .7 }, { id: 'milch', icon: '🍼', v: 25, drink: true },
+  { id: 'banane', icon: '🍌', v: 15, col: '#fff1a8', messy: .2 }, { id: 'apfel', icon: '🍎', v: 14, col: '#f7e6a8', messy: .1 },
+  { id: 'karotte', icon: '🥕', v: 12, col: '#f39c3d', messy: .3 }, { id: 'erdbeere', icon: '🍓', v: 12, col: '#e8435a', messy: .5 },
+  { id: 'brokkoli', icon: '🥦', v: 12, col: '#5aa845', messy: .3 }, { id: 'keks', icon: '🍪', v: 10, col: '#c48a4a', messy: .4 },
+];
+const SMEAR_POS = [[106, 186], [194, 184], [150, 206], [126, 200], [176, 200], [116, 156]];
+SCENES.food = sc => {
+  const b = baby(), bs = bst();
+  sc.innerHTML = `<div class="stage scn kitchen"><div class="main"><div class="meter">🍽️<span class="bar"><i id="sat"></i></span></div><div class="babyBox" id="bb"></div></div>
+    <div class="tray foodTray">${FOODS.map(f => `<div class="tool" data-f="${f.id}">${f.icon}</div>`).join('')}<div class="tool" data-f="napkin">🧻</div></div></div>`;
+  const bb = $('#bb', sc);
+  bb.innerHTML = '<div class="chair"></div>' + babySVG(b, { outfit: bs.outfit, bib: true, expr: 'smile' }) + '<div class="hcTray"></div><div class="hcLegs"></div>';
+  const svg = $('svg.baby', bb), fx = $('.fx', svg), sat = $('#sat', sc);
+  let busy = false, rewarded = bs.needs.satt >= 100, smears = [];
+  const MOUTH = { x: 150, y: 182 };
+  const upd = () => sat.style.width = bs.needs.satt + '%';
+  upd();
+  function addSmear(col) {
+    const free = SMEAR_POS.filter(([x, y]) => !smears.some(s => s.x === x && s.y === y)); if (!free.length) return;
+    const [x, y] = pickOne(free), g = svgEl('g', { fill: col, opacity: .9 });
+    g.innerHTML = `<ellipse cx="${x}" cy="${y}" rx="11" ry="8"/><circle cx="${x + 9}" cy="${y + 4}" r="5"/><circle cx="${x - 8}" cy="${y - 3}" r="4"/>`;
+    fx.appendChild(g); smears.push({ x, y, hp: 1, g });
+  }
+  const distMouth = (x, y) => { const p = toSvg(svg, x, y); return p ? Math.hypot(p.x - MOUTH.x, p.y - MOUTH.y) : 999; };
+  function eat(f) {
+    busy = true;
+    if (bs.needs.satt >= 100) {
+      setExpr(bb, b, 'smile'); animClass(bb, 'shake', 500); say(bb, 'Bin satt!'); later(() => busy = false, 600); return;
+    }
+    if (f.id === b.dislike) {
+      setExpr(bb, b, 'yuck'); snd.yuck(); animClass(bb, 'shake', 500); say(bb, 'Bäh! 🤢'); addSmear(f.col); addNeed('laune', -3);
+      later(() => { setExpr(bb, b, 'smile'); busy = false; }, 1200); return;
+    }
+    if (f.drink) {
+      setExpr(bb, b, 'drink');
+      for (let i = 0; i < 4; i++) later(snd.gulp, i * 280);
+      later(() => { setExpr(bb, b, 'laugh'); snd.giggle(); say(bb, 'Ahh!'); }, 1200);
+    } else {
+      for (let i = 0; i < 6; i++) later(() => { setExpr(bb, b, i % 2 ? 'chew2' : 'chew1'); snd.munch(); }, i * 170);
+      later(() => { setExpr(bb, b, 'laugh'); snd.giggle(); say(bb, pickOne(['Mjam!', 'Lecker!', 'Mehr!', 'Mmmh!'])); if (Math.random() < f.messy) addSmear(f.col); }, 1050);
+    }
+    addNeed('satt', f.v); addNeed('laune', 2); upd();
+    later(() => {
+      setExpr(bb, b, 'smile'); busy = false;
+      if (bs.needs.satt >= 100 && !rewarded) { rewarded = true; reward('Satt und glücklich!'); }
+    }, 1900);
+  }
+  $$('.tool', sc).forEach(t => {
+    const id = t.dataset.f;
+    if (id === 'napkin') {
+      const sw = thr(snd.swoosh, 220);
+      draggable(t, { onMove(x, y) {
+        const p = toSvg(svg, x, y); if (!p) return;
+        let hit = false;
+        smears = smears.filter(s => { if (Math.hypot(s.x - p.x, s.y - p.y) < 32) { hit = true; s.hp -= .12; s.g.setAttribute('opacity', Math.max(0, s.hp * .9)); if (s.hp <= 0) { s.g.remove(); return false; } } return true; });
+        if (hit) { sw(); if (!smears.length) { say(bb, 'Sauber!'); sparkleAround(bb, 4); } }
+      } });
+      return;
+    }
+    const f = FOODS.find(x => x.id === id);
+    draggable(t, {
+      icon: f.drag || f.icon,
+      onMove(x, y) { if (busy) return; setExpr(bb, b, distMouth(x, y) < 80 ? 'open' : 'smile'); },
+      onEnd(x, y) { if (busy) return; if (distMouth(x, y) < 90) eat(f); else setExpr(bb, b, 'smile'); },
+    });
+  });
+  later(() => say(bb, bs.needs.satt < 60 ? 'Hunger!' : 'Mjam?'), 600);
+};
+
+// ---------- Anziehen ----------
+const CATS = [['top', '👕'], ['bottom', '👖'], ['dress', '👗'], ['shoes', '👟'], ['head', '🎀'], ['glasses', '🕶️'], ['hair', '💇']];
+const VB = { top: '55 185 190 150', bottom: '55 285 190 175', dress: '45 185 210 240', shoes: '80 400 140 85', head: '25 5 250 140', glasses: '75 95 150 90' };
+SCENES.dress = sc => {
+  const bs = bst();
+  sc.innerHTML = `<div class="stage dressroom"><div class="panel"><div class="tabs">${CATS.map(([c, ic]) => `<button class="tab" data-c="${c}">${ic}</button>`).join('')}</div><div class="grid" id="grid"></div></div>
+    <div class="main" style="flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0"><div class="babyBox sway" id="bb"></div><button class="cam" id="cam">📷</button></div></div>`;
+  const bb = $('#bb', sc), grid = $('#grid', sc);
+  let cat = 'top', photoRewarded = false, exprT = 0;
+  const render = expr => { bb.innerHTML = babySVG(baby(), { outfit: bs.outfit, expr }); };
+  render('smile');
+  function happy() {
+    render('laugh'); snd.pop(); sparkleAround(bb, 5); animClass(bb, 'wiggle', 500);
+    if (Math.random() < .5) say(bb, pickOne(['Schön!', 'Hübsch!', 'Juhu!', 'Toll!']));
+    clearTimeout(exprT); exprT = setTimeout(() => setExpr(bb, baby(), 'smile'), 900);
+  }
+  function showTab(c) {
+    cat = c; $$('.tab', sc).forEach(t => t.classList.toggle('on', t.dataset.c === c));
+    if (c === 'hair') {
+      const b = baby();
+      grid.innerHTML = HAIRS.map(h => `<div class="item ${bs.hair === h ? 'on' : ''}" data-h="${h}"><svg viewBox="15 5 270 255">${hairBack(h, bs.hairColor)}${headSVG(b, 'smile')}${hairFront(h, bs.hairColor)}</svg></div>`).join('') +
+        HAIR_COLORS.map(col => `<div class="item ${bs.hairColor === col ? 'on' : ''}" data-hc="${col}"><div class="sw" style="background:${col}"></div></div>`).join('');
+      return;
+    }
+    const head = (c === 'head' || c === 'glasses') ? `<circle cx="150" cy="135" r="76" fill="#f6e3ea"/>` : '';
+    grid.innerHTML = `<div class="item ${bs.outfit[c] < 0 ? 'on' : ''}" data-i="-1">✖️</div>` +
+      ITEMS[c].map((it, i) => `<div class="item ${bs.outfit[c] === i ? 'on' : ''}" data-i="${i}"><svg viewBox="${VB[c]}">${head}${itemSVG(c, it, ++UID)}</svg></div>`).join('');
+  }
+  grid.addEventListener('click', e => {
+    const el = e.target.closest('.item'); if (!el) return; ac();
+    if (el.dataset.h) bs.hair = el.dataset.h;
+    else if (el.dataset.hc) bs.hairColor = el.dataset.hc;
+    else {
+      const i = +el.dataset.i; bs.outfit[cat] = i;
+      if (i >= 0 && cat === 'dress') { bs.outfit.top = -1; bs.outfit.bottom = -1; }
+      if (i >= 0 && (cat === 'top' || cat === 'bottom')) bs.outfit.dress = -1;
+    }
+    addNeed('laune', 1); save(); showTab(cat); happy();
+  });
+  $$('.tab', sc).forEach(t => t.addEventListener('click', () => { snd.click(); showTab(t.dataset.c); }));
+  showTab('top');
+  $('#cam', sc).addEventListener('click', () => {
+    ac(); snd.camera();
+    const f = document.createElement('div'); f.className = 'flash'; document.body.appendChild(f); setTimeout(() => f.remove(), 500);
+    S.album.unshift({ i: S.cur, outfit: { ...bs.outfit }, hair: bs.hair, hairColor: bs.hairColor }); S.album = S.album.slice(0, 30); save();
+    setExpr(bb, baby(), 'laugh');
+    if (!photoRewarded) { photoRewarded = true; later(() => reward('Tolles Foto!'), 400); } else toast('Im Fotoalbum 📷');
+    clearTimeout(exprT); exprT = setTimeout(() => setExpr(bb, baby(), 'smile'), 900);
+  });
+};
+
+// ---------- Fotoalbum ----------
+SCENES.album = sc => {
+  sc.innerHTML = `<div class="stage album" id="alb"></div>`;
+  const alb = $('#alb', sc);
+  function draw() {
+    if (!S.album.length) { alb.innerHTML = `<div class="empty">Noch keine Fotos.<br>Beim Anziehen auf 📷 tippen!</div>`; return; }
+    alb.innerHTML = S.album.map((p, k) => {
+      const b = { ...BABIES[p.i], hair: p.hair, hairColor: p.hairColor };
+      return `<div class="photo"><div class="pic">${babySVG(b, { outfit: p.outfit, expr: 'laugh', viewBox: '0 0 300 490' })}</div><b>${b.name}</b><button class="del" data-k="${k}">✕</button></div>`;
+    }).join('');
+  }
+  alb.addEventListener('click', e => { const d = e.target.closest('.del'); if (!d) return; S.album.splice(+d.dataset.k, 1); save(); snd.swoosh(); draw(); });
+  draw();
+};
+
+// ---------- Schlafen ----------
+function cribSVG(b) {
+  let bars = ''; for (let x = 50; x <= 450; x += 36) bars += `<rect x="${x}" y="50" width="12" height="170" rx="6" fill="#f8dcc0"/>`;
+  let bst2 = ''; for (const [x, y] of [[90, 262], [170, 282], [330, 280], [410, 262], [250, 262]]) bst2 += `<path d="${star(x, y, 13, 6)}" fill="#fff" opacity=".8"/>`;
+  return `<svg viewBox="0 0 500 340">
+    <rect x="30" y="42" width="440" height="16" rx="8" fill="#eec29c"/>${bars}
+    <rect x="16" y="20" width="24" height="316" rx="12" fill="#eec29c"/><rect x="460" y="20" width="24" height="316" rx="12" fill="#eec29c"/>
+    <circle cx="28" cy="18" r="16" fill="#f3d0ae"/><circle cx="472" cy="18" r="16" fill="#f3d0ae"/>
+    <rect x="34" y="210" width="432" height="44" rx="14" fill="#fff" stroke="#ead3df" stroke-width="4"/>
+    <ellipse cx="250" cy="176" rx="128" ry="54" fill="#fff" stroke="#e1d3f0" stroke-width="4"/>
+    <g transform="translate(122.5,44) scale(.85)">${hairBack(b.hair, b.hairColor)}${headSVG(b, 'smile')}${hairFront(b.hair, b.hairColor)}</g>
+    <path d="M40,232 Q140,216 250,228 Q360,216 460,232 L466,306 Q250,324 34,306 Z" fill="#a8d8f7" stroke="#73b6e3" stroke-width="4"/>
+    <path d="M42,246 Q140,232 250,242 Q360,232 458,246" stroke="#fff" stroke-width="6" fill="none" opacity=".7"/>${bst2}
+    <g fill="${b.skin}" stroke="${shade(b.skin, -.15)}" stroke-width="3"><circle cx="206" cy="232" r="14"/><circle cx="294" cy="232" r="14"/></g>
+    <rect x="30" y="296" width="440" height="22" rx="10" fill="#eec29c"/></svg>`;
+}
+const MOBILE = `<svg viewBox="0 0 220 150"><path d="M110,0 L110,22" stroke="#fff" stroke-width="4"/><ellipse cx="110" cy="24" rx="92" ry="9" fill="#fff" stroke="#e3c9f1" stroke-width="3"/>
+  <path d="M28,28 L28,78 M80,30 L80,104 M140,30 L140,92 M192,28 L192,70" stroke="#fff" stroke-width="2"/>
+  <path d="${star(28, 92, 18, 8)}" fill="#ffd34d" stroke="#e9a91d" stroke-width="2"/>
+  <path d="M92,104 a24,24 0 1,0 0,34 a18,18 0 1,1 0,-34Z" fill="#fff3a6" stroke="#e9c53d" stroke-width="2"/>
+  <g fill="#fff" stroke="#bcd6f7" stroke-width="2"><circle cx="128" cy="104" r="12"/><circle cx="144" cy="98" r="14"/><circle cx="158" cy="106" r="11"/></g>
+  <path d="${heart(192, 84, 13)}" fill="#ff9ac1" stroke="#ff6fa8" stroke-width="2"/></svg>`;
+const LAMP = on => `<svg viewBox="0 0 92 110"><rect x="40" y="0" width="12" height="30" fill="#c9b8e6"/>
+  ${on ? '<circle cx="46" cy="64" r="44" fill="#fff6b0" opacity=".55"/>' : ''}<path d="M14,58 Q46,8 78,58 Z" fill="${on ? '#ffb3d0' : '#c7a3b6'}" stroke="#fff" stroke-width="3"/>
+  <circle cx="46" cy="66" r="13" fill="${on ? '#fff59a' : '#bdbdbd'}" stroke="#fff" stroke-width="3"/></svg>`;
+SCENES.sleep = sc => {
+  const b = baby(), bs = bst();
+  sc.innerHTML = `<div class="stage nursery" id="nur">
+    <div class="window"><span style="left:55%;top:10%">🌙</span><span style="left:12%;top:40%">⭐</span><span style="left:60%;top:62%;font-size:.7em">✨</span></div>
+    <button class="lamp next" id="lamp">${LAMP(true)}</button>
+    <div class="sleepMeter">🌙<span class="bar"><i id="sm" style="width:0"></i></span></div>
+    <div class="cribWrap" id="cw"><div class="mobile" id="mob">${MOBILE}</div><div class="crib" id="crib">${cribSVG(b)}</div></div>
+    <div class="night"></div>
+    <button class="wake hidden" id="wake">☀️</button></div>`;
+  const nur = $('#nur', sc), lamp = $('#lamp', sc), mob = $('#mob', sc), crib = $('#crib', sc), cw = $('#cw', sc), sm = $('#sm', sc), wake = $('#wake', sc);
+  let p = 0, light = true, rockUntil = 0, asleep = false, rewarded = false, yawnT = 0;
+  const box = cw; // Sprechblasen über dem Bett
+  lamp.addEventListener('click', () => {
+    ac(); light = !light; snd.click(); lamp.innerHTML = LAMP(light); nur.classList.toggle('dark', !light); lamp.classList.remove('next');
+    if (light && asleep) doWake();
+  });
+  mob.addEventListener('pointerdown', () => { ac(); playLullaby(); mob.classList.add('spin'); });
+  crib.addEventListener('pointerdown', () => { ac(); rockUntil = Date.now() + 4500; crib.classList.add('rock'); if (!asleep && Math.random() < .3) { setExpr(crib, b, 'laugh'); later(() => !asleep && setExpr(crib, b, 'smile'), 600); } });
+  function doWake() {
+    asleep = false; p = 0; light = true; lamp.innerHTML = LAMP(true); nur.classList.remove('dark'); wake.classList.add('hidden');
+    stopLullaby(); setExpr(crib, b, 'laugh'); snd.giggle(); say(box, 'Guten Morgen!'); later(() => setExpr(crib, b, 'smile'), 1200);
+  }
+  wake.addEventListener('click', doWake);
+  every(() => {
+    const rocking = Date.now() < rockUntil, music = lullabyPlaying();
+    if (!rocking) crib.classList.remove('rock');
+    if (!music) mob.classList.remove('spin');
+    if (asleep) { if (Math.random() < .04) zz(); return; }
+    let inc = 0;
+    if (rocking) inc += light ? .3 : .7;
+    if (music) inc += light ? .25 : .6;
+    if (!light) inc += .1;
+    p += inc || -.05;
+    if (light && p > 55) { p = 55; if (!lamp.classList.contains('next')) { lamp.classList.add('next'); say(box, 'Zu hell! 💡', 1800); } }
+    p = clamp(p, 0, 100); sm.style.width = p + '%';
+    if (p >= 100) {
+      asleep = true; setExpr(crib, b, 'sleep'); bs.needs.ruhe = 100; addNeed('laune', 5); wake.classList.remove('hidden');
+      if (!rewarded) { rewarded = true; later(() => reward('Schlaf gut!'), 400); }
+      zz(); return;
+    }
+    if (yawnT) return;
+    if (p > 20 && Math.random() < .012) { yawnT = 1; setExpr(crib, b, 'open'); snd.yawn(); later(() => { yawnT = 0; }, 900); return; }
+    setExpr(crib, b, p < 30 ? 'smile' : 'sleepy');
+  }, 100);
+  function zz() {
+    const z = document.createElement('div'); z.className = 'zz'; z.textContent = pickOne(['Z', 'z', 'Zz']);
+    z.style.left = rnd(52, 60) + '%'; z.style.top = '18%'; cw.appendChild(z); setTimeout(() => z.remove(), 2400);
+  }
+  later(() => say(box, bs.needs.ruhe < 50 ? 'Bin müde…' : 'Gar nicht müde!', 1600), 600);
+};
+
+// ================= Start =================
+document.addEventListener('pointerdown', () => ac(), { once: true });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+go(S.chosen ? 'hub' : 'chooser');
+</script>
+</body>
+</html>
